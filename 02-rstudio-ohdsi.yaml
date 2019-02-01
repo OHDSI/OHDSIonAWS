@@ -1,0 +1,465 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This CloudFormation Template deploys a complete OHDSI environment.  It
+  depends on the OHDSI-VPC CloudFormation Template.
+
+
+
+Parameters:
+#  VpcId:
+#    Type: AWS::EC2::VPC::Id
+#    Description: VPC this server will reside in
+  VPCSubnet:
+    Description: The subnet in which you want your R-Studio server to be deployed.
+    Type: AWS::EC2::Subnet::Id
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  RStudioSecurityGroup:
+    Description: The Security Group you want to use to contorl access to your R-Studio Server.
+    Type: AWS::EC2::SecurityGroup::Id
+  HomeDirectorySize:
+    Description: The amount of encrypted disk space, in GBs, allocated to store R-Studio user's local data.
+    Type: Number
+    Default: 20
+  InstanceType:
+    Type: String
+    Description: Instance type for the R-Studio server.
+    AllowedValues:
+      - t2.medium 
+      - t2.large 
+      - t2.xlarge 
+      - t2.2xlarge 
+      - t3.medium 
+      - t3.large 
+      - t3.xlarge 
+      - t3.2xlarge 
+      - m4.large 
+      - m4.xlarge 
+      - m4.2xlarge 
+      - m4.4xlarge 
+      - m4.10xlarge 
+      - m4.16xlarge 
+      - m5.large 
+      - m5.xlarge 
+      - m5.2xlarge 
+      - m5.4xlarge 
+      - m5.12xlarge 
+      - m5.24xlarge 
+      - c4.large 
+      - c4.xlarge 
+      - c4.2xlarge 
+      - c4.4xlarge 
+      - c4.8xlarge 
+      - c5.large 
+      - c5.xlarge 
+      - c5.2xlarge 
+      - c5.4xlarge 
+      - c5.9xlarge 
+      - c5.18xlarge
+      - r4.large 
+      - r4.xlarge 
+      - r4.2xlarge 
+      - r4.4xlarge 
+      - r4.8xlarge 
+      - r4.16xlarge
+      - r5.large 
+      - r5.xlarge 
+      - r5.2xlarge 
+      - r5.4xlarge 
+      - r5.8xlarge 
+      - r5.16xlarge 
+      - g2.2xlarge
+      - g2.8xlarge
+      - p2.xlarge
+      - p2.8xlarge
+      - p2.16xlarge
+      - g3.4xlarge
+      - g3.8xlarge
+      - g3.16xlarge
+    ConstraintDescription: Valid instance type in the t2, t3, m5, c5, r4, g2, p2, and g3 families
+    Default: t2.xlarge
+  UserList:
+    Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
+    Type: 'String'
+    NoEcho: true
+    Default: 'rstudio,yourRSTUDIOpassword1'
+  KeyPair:
+    Description: The EC2 Key Pair to use for the Atlas/WebAPI EC2 Instances.
+    Type: AWS::EC2::KeyPair::KeyName
+  RStudioInstanceProfile:
+    Type: String
+  SageMakerBucket:
+    Description: Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you.
+    Type: 'String'
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+  RDSEndpoint: 
+    Type: String
+  RedshiftEndpoint: 
+    Type: String
+  DatabaseMasterPassword:
+    Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    ConstraintDescription: The Amazon RDS master password. Letters, numbers, spaces, and these special characters `~#$%^&*()_+,-
+  Sources:
+    Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9,])*$
+    Default: CMSDESynPUF1k,CMSDESynPUF23m
+  PatientLevelPredictionv:
+    Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.0.2'
+  CohortMethodv:
+    Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.6.2'
+  SqlRenderv:
+    Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.4.10'
+  DatabaseConnectorv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.1.0'
+  OhdsiRToolsv:
+    Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.5.3'
+  FeatureExtractionv:
+    Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.0.2'
+  Cyclopsv:
+    Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.3.1'
+  EmpiricalCalibrationv:
+    Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.3.6'
+  OhdsiSharingv:
+    Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v0.1.3'
+  Achillesv:
+    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.5.0'
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-467ca739
+    us-east-2:
+      AMI: ami-976152f2
+    us-west-1:
+      AMI: ami-46e1f226
+    us-west-2:
+      AMI: ami-6b8cef13
+    ca-central-1:
+      AMI: ami-2f39bf4b
+    eu-west-1:
+      AMI: ami-9cbe9be5
+    eu-west-2:
+      AMI: ami-c12dcda6
+    eu-west-3:
+      AMI: ami-cae150b7
+    eu-central-1:
+      AMI: ami-1b316af0
+    sa-east-1:
+      AMI: ami-f09dcc9c
+    ap-south-1:
+      AMI: ami-b46f48db
+    ap-southeast-1:
+      AMI: ami-64260718
+    ap-southeast-2:
+      AMI: ami-60a26a02
+    ap-northeast-1:
+      AMI: ami-28ddc154
+    ap-northeast-2:
+      AMI: ami-efaf0181
+
+
+Resources:
+
+  SageMakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+
+
+  RStudioInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref RStudioInstanceProfile
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref 'KeyPair'
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      SecurityGroupIds: 
+        - !Ref RStudioSecurityGroup
+      SubnetId: !Ref VPCSubnet 
+      BlockDeviceMappings: 
+          - DeviceName: "/dev/xvda"
+            Ebs: 
+              VolumeType: "gp2"
+              DeleteOnTermination: "true"
+              VolumeSize: 50
+          - DeviceName: "/dev/sdm"
+            Ebs: 
+              VolumeType: "gp2"
+              DeleteOnTermination: "true"
+              Encrypted: "true"
+              VolumeSize: !Ref HomeDirectorySize
+      UserData:
+        Fn::Base64: !Sub 
+          - | 
+            #!/bin/bash
+            #RSTUDIO_URL="https://download2.rstudio.org/rstudio-server-rhel-1.0.153-x86_64.rpm"
+            RSTUDIO_URL="https://download2.rstudio.org/rstudio-server-rhel-1.1.447-x86_64.rpm"
+            SHINY_URL="https://download3.rstudio.org/centos5.9/x86_64/shiny-server-1.5.1.834-rh5-x86_64.rpm"
+            RSTUDIOPORT=8787
+            users=${UserList}
+            SMBUCKET=${SageMakerBucket}
+            SMROLEARN=${SageMakerRole}
+            MIN_USER_ID=400 # default is 500 starting from 1.0.44, EMR hadoop user id is 498
+            export SOURCES=${Sources}
+
+            # Install SSM client
+            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            restart amazon-ssm-agent
+
+            aws s3 ls $SMBUCKET
+            if [ $? != 0 ] || [ "$SMBUCKET" == "" ]; then
+              SMBUCKET=${AutoSMBucket}
+              aws s3 mb s3://$SMBUCKET
+            fi
+
+            sudo mkfs -t ext4 /dev/sdm
+            mkdir /mnt/tmp
+            sudo mount /dev/sdm /mnt/tmp
+            cp -a /home/. /mnt/tmp
+            umount /dev/sdm
+            mount /dev/sdm /home
+            echo "/dev/sdm /home ext4 defaults,nofail 0 2" >> /etc/fstab
+
+            yum erase -y java-1.7.0-openjdk java-1.7.0-openjdk-devel
+            yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
+
+            date > /tmp/rstudio_sparklyr_emr5.tmp
+            export MAKE='make -j 8'
+            sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
+            sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
+            if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
+              sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
+            fi
+            if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
+              sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
+            fi
+
+            mkdir /mnt/r-stuff
+            cd /mnt/r-stuff
+
+            pushd .
+            mkdir R-latest
+            cd R-latest
+            wget https://cran.r-project.org/src/base/R-3/R-3.5.0.tar.gz
+            tar -xzf R-3.5.0.tar.gz
+            #Trying out Python
+            sudo yum install -y python36 python36-devel python36-pip
+            sudo yum install -y gcc gcc-c++ gcc-gfortran
+            sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+            cd R-3*
+            ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
+            make -j 8
+            sudo make install
+            sudo su << BASH_SCRIPT
+            echo 'export PATH=${!PWD}/bin:$PATH' >> /etc/profile
+            BASH_SCRIPT
+            popd
+
+            sudo sed -i 's/make/make -j 8/g' /usr/lib64/R/etc/Renviron
+
+            # set unix environment variables
+            sudo su << BASH_SCRIPT
+            echo '
+            export HADOOP_HOME=/usr/lib/hadoop
+            export HADOOP_CMD=/usr/bin/hadoop
+            export HADOOP_STREAMING=/usr/lib/hadoop-mapreduce/hadoop-streaming.jar
+            export JAVA_HOME=/etc/alternatives/jre
+            ' >> /etc/profile
+            BASH_SCRIPT
+            sudo sh -c "source /etc/profile"
+
+            # fix hadoop tmp permission
+            sudo chmod 777 -R /mnt/var/lib/hadoop/tmp
+
+            # fix java binding - R and packages have to be compiled with the same java version as hadoop
+            sudo R CMD javareconf
+
+
+            # install rstudio
+            # only run if master node
+
+
+            RSTUDIO_FILE=$(basename $RSTUDIO_URL)
+            wget $RSTUDIO_URL
+            sudo yum install --nogpgcheck -y $RSTUDIO_FILE
+            # change port - 8787 will not work for many companies
+            sudo sh -c "echo 'www-port=$RSTUDIOPORT' >> /etc/rstudio/rserver.conf"
+            sudo sh -c "echo 'auth-minimum-user-id=$MIN_USER_ID' >> /etc/rstudio/rserver.conf"
+            sudo perl -p -i -e "s/= 5../= 100/g" /etc/pam.d/rstudio
+            sudo rstudio-server stop || true
+            sudo rstudio-server start
+
+            sudo R --no-save << R_SCRIPT
+            install.packages(c('reticulate', 'RJSONIO', 'httr', 'devtools', 'itertools', 'digest', 'Rcpp', 'functional', 'plyr', 'stringr', 'reshape2', 'caTools', 'rJava', 'devtools', 'DBI', 'ggplot2', 'dplyr', 'R.methodsS3', 'Hmisc', 'memoise', 'rjson', 'xml2', 'rvg', 'gdtools', 'png'), repos="http://cran.rstudio.com")
+            R_SCRIPT
+
+
+            SHINY_FILE=$(basename $SHINY_URL)
+                wget $SHINY_URL
+                sudo yum install --nogpgcheck -y $SHINY_FILE
+
+                sudo R --no-save <<R_SCRIPT
+            install.packages(c('shiny','rmarkdown'),
+            repos="http://cran.rstudio.com")
+            R_SCRIPT
+
+            sudo rm -f /tmp/rstudio_sparklyr_emr5.tmp
+
+            sudo R --no-save << R_SCRIPT
+            library(devtools)
+            #Used to give access to AWS S3 for reading and writing data
+            install.packages("aws.ec2metadata", repos = "http://cloudyr.github.io/drat")
+            install.packages("aws.s3", repos = "http://cloudyr.github.io/drat")
+            #Newer versions of httpuv cause problems with R Shiny applications
+            devtools::install_version("httpuv", version = "1.4.5", repos = "http://cran.us.r-project.org")
+            #Latest version of PythonInR (0.1-6) gives the error Python.h: No such file or directory. Try "sudo apt-get install python-dev"
+            devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org")
+            devtools::install_github("ohdsi/SqlRender", ref = "${SqlRenderv}")
+            devtools::install_github("ohdsi/DatabaseConnector", ref = "${DatabaseConnectorv}")
+            devtools::install_github("ohdsi/OhdsiRTools", ref = "${OhdsiRToolsv}")
+            devtools::install_github("ohdsi/Achilles", ref = "${Achillesv}")
+            devtools::install_github("ohdsi/FeatureExtraction", ref = "${FeatureExtractionv}")
+            devtools::install_github("ohdsi/Cyclops", ref = "${Cyclopsv}")
+            devtools::install_github("ohdsi/BigKnn")
+            devtools::install_github("ohdsi/CohortMethod", ref = "${CohortMethodv}")
+            devtools::install_github("ohdsi/EmpiricalCalibration", ref = "${EmpiricalCalibrationv}")
+            #Newer versions of xgboost have had trouble compiling
+            packageurl <- "https://cran.r-project.org/src/contrib/Archive/xgboost/xgboost_0.6.4.1.tar.gz"
+            install.packages(packageurl, repos=NULL, type="source")
+            packageurl <- "https://cran.r-project.org/src/contrib/Archive/ReporteRsjars/ReporteRsjars_0.0.4.tar.gz"
+            install.packages(packageurl, repos=NULL, type="source")
+            packageurl <- "https://cran.r-project.org/src/contrib/Archive/ReporteRs/ReporteRs_0.8.10.tar.gz"
+            install.packages(packageurl, repos=NULL, type="source")
+            devtools::install_github("ohdsi/OhdsiSharing", ref = "${OhdsiSharingv}")
+            devtools::install_github("ohdsi/PatientLevelPrediction", ref = "${PatientLevelPredictionv}", upgrade = "never")
+            R_SCRIPT
+
+            sudo yum install -y cairo-devel
+            #wget https://repo.continuum.io/archive/Anaconda2-5.1.0-Linux-x86_64.sh
+            #chmod +x Anaconda2-5.1.0-Linux-x86_64.sh
+            #sudo ./Anaconda2-5.1.0-Linux-x86_64.sh -b -p /usr/anaconda2/
+            sudo yum install -y python-scipy
+            sudo pip install scipy
+            sudo pip install sklearn
+            sudo pip install torch torchvision
+            sudo pip install boto3==1.7.52
+            sudo pip install sagemaker
+            sudo pip install mxnet
+            sudo pip install pandas
+
+            region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`
+            count=1
+            for i in $(echo $users | sed "s/,/ /g")
+            do
+                if [ `expr $count % 2` -eq "1" ]; then
+                  username=$i
+                  let count+=1
+                  continue
+                else
+                  sudo adduser $username
+                  sudo sh -c "echo '$i' | passwd --stdin $username"
+                  sudo -u $username mkdir /home/$username/.aws
+                  sudo -u $username bash -c 'echo "[default]
+            region = '$region'" > /home/'$username'/.aws/config'
+
+                  sudo -u $username bash -c 'echo "#Connection string for the OMOP database on Redshift
+            connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"redshift\",
+            server = \"${RedshiftEndpoint}/mycdm\",
+            user = \"master\",
+            password = \"${DatabaseMasterPassword}\")
+
+            #Connection string for the WebAPI database on RDS Aurora PostgreSQL
+            connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
+            server = \"${RDSEndpoint}/OHDSI\",
+            user = \"master\",
+            password = \"${DatabaseMasterPassword}\")
+                  " > /home/'$username'/ConnectionDetails.R'
+
+                  for i in $(echo $SOURCES | sed "s/,/ /g")
+                  do
+                    sudo -u $username bash -c 'echo "cdmDatabaseSchema <- \"'$i'\"
+            cohortsDatabaseSchema <- \"'$i'results\"
+                    " >> /home/'$username'/ConnectionDetails.R'
+                  done
+                  sudo -u $username bash -c 'echo "SageMakerBucket <- \"'$SMBUCKET'\"" >> /home/'$username'/ConnectionDetails.R'
+                  sudo -u $username bash -c 'echo "SageMakerRoleARN <- \"'$SMROLEARN'\"" >> /home/'$username'/ConnectionDetails.R'
+
+                  # add the first users in the list to the sudoers file.
+                  if [ "$count" = "2" ]; then
+                    echo "$username  ALL=(ALL:ALL) ALL" >> /etc/sudoers
+                  fi
+
+                  let count+=1
+                fi
+            done
+          - { AutoSMBucket: !Join [ "", [ !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'VPCSubnet'] ], '-sagemakerplp' ] ] }
+  RStudioTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: RStudioInstance
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '20'
+      Targets:
+      - Id: !Ref 'RStudioInstance'
+        Port: 8787
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VPCId
+
+  
+Outputs:
+  RStudioTargetGroupArn:
+    Value: !Ref RStudioTargetGroup

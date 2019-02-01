@@ -1,0 +1,71 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Reference Architecture to host Moodle on AWS - Creates Route 53 record set (if selected)
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Route 53 Parameters
+      Parameters:
+        - DomainName
+        - HostedZoneId
+        - HostedZoneName
+        - DnsEndpoint
+    ParameterLabels:
+      DnsEndpoint:
+        default: DNS Endpoint
+      DomainName:
+        default: Site Domain
+      HostedZoneId:
+        default: Hosted Zone ID
+
+Parameters:
+
+  DnsEndpoint:
+    AllowedPattern: ^(?!http)(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+    Description: The DNS endpoint - CloudFront DNS if using CloudFront else Public ELB DNS name.
+    Type: String
+  HostedZoneId:
+    Description: '[ Optional, only if using Route53 ] The Route 53 hosted zone ID to create the domain in (e.g. Z2FDTNDATAQYW2).'
+    Type: String
+  HostedZoneName:
+    AllowedPattern: ^$|(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+    Description: '[ Optional, only if using Route53 ] The Route 53 hosted zone name to create the domain in (e.g. example.edu).'
+    Type: String
+  DomainName:
+    AllowedPattern: ^([a-zA-Z0-9-])*$
+    Description: '[ Optional, only if using Route53 ] The sub-domain name of the REDCap website.  This sub-domain will be prepended your specified Hosted Zone (e.g. redcap in redcap.example.edu).'
+    Type: String
+
+Resources:
+
+  RecordSetAtlas:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName, '.']]
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+      - !Ref DnsEndpoint
+
+  RecordSetRStudio:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, '.']]
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+      - !Ref DnsEndpoint

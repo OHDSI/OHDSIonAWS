@@ -1,0 +1,552 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This CloudFormation Template deploys a complete OHDSI environment.  It
+  depends on the OHDSI-VPC CloudFormation Template.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: General AWS
+      Parameters:
+        - EC2KeyName
+    - Label:
+        default: New Atlas and WebAPI Versions
+      Parameters:
+        - Atlasv
+        - WebAPIv
+    - Label:
+        default: Existing Elastic Beanstalk Configuration
+      Parameters:
+        - SubnetAppA
+        - SGApp
+        - EBBucket
+        - EBEndpoint
+        - EBEnvironmentId
+    - Label:
+          default: DNS and SSL
+      Parameters:
+        - UseRoute53Boolean
+        - UseACMBoolean
+        - HostedZoneId
+        - HostedZoneName
+        - DomainName
+    - Label:
+        default: Database Tier
+      Parameters:
+        - DatabaseMasterPassword
+        - RDSEndpoint
+        - RedshiftEndpoint
+
+
+    
+    ParameterLabels:
+      EC2KeyName:
+        default: EC2 Key Pair
+      AccessCidr:
+        default: Limit access to IP address range?
+
+      EBEndpoint:
+        default: Elastic Beanstalk Endpoint Name
+      UseRoute53Boolean:
+        default: Use Route 53?
+      UseACMBoolean:
+        default: Use AWS Certificate Manager?
+      HostedZoneId:
+        default: Route53 Hosted Zone ID
+      HostedZoneName:
+        default: Hosted Zone
+      DomainName:
+        default: Site Domain
+
+      DatabaseMasterPassword:
+        default: 'Aurora Postgres and Redshift master password'
+
+      Atlasv:
+        default:  Atlas Version
+      WebAPIv:
+        default:  WebAPI Version
+
+      SubnetAppA:
+        default: An existing Elastic Beanstalk Atlas / WebAPI subnet
+      SGApp:
+        default: The existing Elastic Beanstalk Atlas / WebAPI Security Group
+
+Parameters:
+  EBEndpoint:
+    Description: "The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com)"
+    Type: String
+  UseRoute53Boolean:
+    AllowedValues:
+      - true
+      - false
+    Default: false
+    Description: Specifies whether a record set should be created in Route 53 for your REDCap domain name.  If not, you will recieve a default Elastic Beanstalk DNS name (e.g. redcap.us-east-1.elasticbeanstalk.com).
+    Type: String
+  UseACMBoolean:
+    AllowedValues:
+      - true
+      - false
+    Default: false
+    Description: Specifies whether an SSL certificate should be generated for your domain name using AWS Certificate Manager (ACM).  If one is not generated, HTTP will be used and an SSL certificate can be applied after deployment.
+    Type: String
+  HostedZoneName:
+    Type: String
+    Description: "The hosted zone that will be used by your application.  If using the Elastic Beanstalk provided hosted zone in us-east-1, just accept the default value."
+  DomainName:
+    AllowedPattern: ^$|(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+    Description: '[ Optional, only if using Route53 ] The sub-domain name of the Project REDCap site.  This sub-domain will be prepended your specified Hosted Zone (e.g. redcap in redcap.example.edu).'
+    Type: String
+  DatabaseMasterPassword:
+    Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    ConstraintDescription: The Amazon RDS master password. Letters, numbers, spaces, and these special characters `~#$%^&*()_+,-
+  Atlasv:
+    Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.6.0'
+  WebAPIv:
+    Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.6.0'
+  EC2KeyName:
+    Description: The EC2 Key Pair to use for the Atlas/WebAPI EC2 Instances.
+    Type: AWS::EC2::KeyPair::KeyName
+  SubnetAppA:
+    Type: AWS::EC2::Subnet::Id
+  SGApp:
+    Type: AWS::EC2::SecurityGroup::Id
+  RDSEndpoint: 
+    Type: String
+  RedshiftEndpoint: 
+    Type: String
+  EBBucket:
+    Type: String
+    Description: 'S3 Bucket used to store the application package for Elastic Beanstalk.'
+  EBEnvironmentId:
+    Type: String
+    Description: 'ID of the Atlas/WebAPI Elastic Beanstalk environment to upgrade. (ex. e-jsvxakmis5)'
+
+
+#Mapping to find the Amazon Linux AMI in each region.  This AMI is used for the temporary EC2 server.
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-cfe4b2b0
+    us-east-2:
+      AMI: ami-40142d25
+    us-west-1:
+      AMI: ami-0e86606d
+    us-west-2:
+      AMI: ami-0ad99772
+    ca-central-1:
+      AMI: ami-03e86a67
+    eu-west-1:
+      AMI: ami-e4515e0e
+    eu-west-2:
+      AMI: ami-b2b55cd5
+    eu-west-3:
+      AMI: ami-d50bbaa8
+    eu-central-1:
+      AMI: ami-a058674b
+    sa-east-1:
+      AMI: ami-83d58fef
+    ap-south-1:
+      AMI: ami-5a8da735
+    ap-southeast-1:
+      AMI: ami-ed838091
+    ap-southeast-2:
+      AMI: ami-33f92051
+    ap-northeast-1:
+      AMI: ami-9c9443e3
+    ap-northeast-2:
+      AMI: ami-ebc47185
+    ap-northeast-3:
+      AMI: ami-09b8b674
+
+
+Conditions:
+  DeployRoute53: 
+    !Equals [ true, !Ref UseRoute53Boolean ]
+  DeployACM: !And 
+    - !Equals [ true, !Ref UseACMBoolean ]
+    - !Condition DeployRoute53
+  NotDeployACM: !Or
+    - !Equals [ false, !Ref UseACMBoolean ]
+    - !Equals [ false, !Ref UseRoute53Boolean ]
+
+Resources:
+#IAM Roles for the temporary EC2 server to compile Atlas and WebAPI, apply the database DDLs, load the sample data, and run Achilles
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+  EC2RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: root
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: 
+              - "s3:*"
+            Resource:    
+              - !Join [ "", [ 'arn:aws:s3:::', !Ref "EBBucket" ] ]
+              - !Join [ "", [ 'arn:aws:s3:::', !Ref "EBBucket", '/*' ] ]
+              - !Join 
+                - ''
+                - - 'arn:aws'
+                  - ':s3:::elasticbeanstalk-*-'
+                  - !Ref 'AWS::AccountId'
+              - !Join 
+                - ''
+                - - 'arn:aws'
+                  - ':s3:::elasticbeanstalk-*-'
+                  - !Ref 'AWS::AccountId'
+                  - /*
+              - !Join 
+                - ''
+                - - 'arn:aws'
+                  - ':s3:::elasticbeanstalk-*-'
+                  - !Ref 'AWS::AccountId'
+                  - '-*'
+              - !Join 
+                - ''
+                - - 'arn:aws'
+                  - ':s3:::elasticbeanstalk-*-'
+                  - !Ref 'AWS::AccountId'
+                  - '-*/*'
+          - Effect: Allow
+            Action:
+              - "elasticbeanstalk:RestartAppServer"
+              - "elasticbeanstalk:ListAvailableSolutionStacks"
+              - "elasticbeanstalk:DescribeEnvironmentResources"
+              - "elasticloadbalancing:RegisterTargets"
+              - "elasticloadbalancing:DescribeTargetGroups"
+              - "elasticloadbalancing:DescribeLoadBalancers"
+              - "elasticloadbalancing:DescribeListeners"
+              - "elasticloadbalancing:CreateRule"
+              - "elasticloadbalancing:DescribeRules"
+              - "autoscaling:DescribeAutoScalingGroups"
+              - "cloudformation:DescribeStackResources"
+              - "cloudformation:DescribeStackResource"
+            Resource:
+              - '*'          
+          - Effect: Allow
+            Action: 
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+              - 'logs:DescribeLogStreams'
+            Resource: 'arn:aws:logs:*:*:*'
+          - Sid: CreateNewEBVersion
+            Action:
+              - 'elasticbeanstalk:RetrieveEnvironmentInfo'
+              - "elasticbeanstalk:DescribeEnvironments"
+              - "elasticbeanstalk:DescribeEvents"
+              - "elasticbeanstalk:DescribeConfigurationOptions"
+              - "elasticbeanstalk:DescribeInstancesHealth"
+              - "elasticbeanstalk:DescribeApplicationVersions"
+              - "elasticbeanstalk:DescribeEnvironmentHealth"
+              - "elasticbeanstalk:DescribeApplications"
+              - "elasticbeanstalk:ListPlatformVersions"
+              - "elasticbeanstalk:DescribeEnvironmentResources"
+              - "elasticbeanstalk:DescribeEnvironmentManagedActions"
+              - "elasticbeanstalk:RequestEnvironmentInfo"
+              - "elasticbeanstalk:DescribeEnvironmentManagedActionHistory"
+              - "elasticbeanstalk:CreateApplicationVersion"
+              - "elasticbeanstalk:ValidateConfigurationSettings"
+              - "elasticbeanstalk:DescribeConfigurationSettings"
+              - "elasticbeanstalk:CheckDNSAvailability"
+              - "elasticbeanstalk:ListAvailableSolutionStacks"
+              - "elasticbeanstalk:DescribePlatformVersion"
+              - "elasticbeanstalk:UpdateEnvironment"
+              - "cloudformation:GetTemplate"
+              - 'cloudformation:DescribeStackResources'
+              - 'cloudformation:DescribeStackResource'
+              - "autoscaling:DescribeAutoScalingGroups"
+              - "autoscaling:SuspendProcesses"
+              - "autoscaling:DescribeScalingActivities"
+              - "autoscaling:ResumeProcesses"
+              - "elasticloadbalancing:DescribeTargetGroups"
+              - "elasticloadbalancing:RegisterTargets"
+            Effect: Allow
+            Resource: '*'
+      Roles:
+        - !Ref 'EC2Role'
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref 'EC2Role'
+
+
+
+
+# This is a temporary EC2 server used to add the necessary Elastic Beanstalk scripts to the Project REDCap source code zip file.
+  TempEC2Instance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+              /etc/awslogs/awslogs.conf:
+                content: !Sub |
+                  [general]
+                  state_file = /var/lib/awslogs/agent-state        
+                  
+                  [ohdsi-build-log]
+                  file = /tmp/log.txt
+                  log_group_name = ohdsi-temporary-ec2-instnace-build-log
+                  log_stream_name = ${EBEndpoint}-${AWS::StackName}-build-log
+                mode: 000664
+                owner: root
+                group: root
+              /etc/awslogs/awscli.conf:
+                content: !Sub |
+                  [plugins]
+                  cwlogs = cwlogs
+                  [default]
+                  region = ${AWS::Region}
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/upgrade_ohdsi.sh:
+                content: !Sub |
+                  #  This script configures the CFN deployed environment for OHDSI WebAPI and Atlas
+                  #
+                  #  Requirements: 
+                  #  $RDS_ENDPOINT must contain the endpoint of the Postgres Aurora RDS environment to be used to store the WebAPI application data
+                  #  $EB_ENDPOINT must contain the endpoint of the Elastic Beanstalk Tomcat environment
+                  #  $REDSHIFT_ENDPOINT must contain the endpoint of the Redshift Cluster used for OMOP CDM and Vocabulary
+                  #  $BUCKET_NAME must contain the s3 bucket name in which Elastic Beanstalk will look for the ohdsi-webapi-atlas.zip file
+                  #  $DATABASE_PASSWORD must contain the password that was used for the master accounts for Redshift and RDS Aurora Postgres
+
+                  echo "RDS_ENDPOINT=" $RDS_ENDPOINT
+                  echo "EB_ENDPOINT=" $EB_ENDPOINT
+                  echo "REDSHIFT_ENDPOINT=" $REDSHIFT_ENDPOINT
+                  echo "BUCKET_NAME=" $BUCKET_NAME
+                  echo "DATABASE_PASSWORD=" $DATABASE_PASSWORD
+                  export APPLICATION_NAME=$(aws elasticbeanstalk describe-environments --region $REGION --environment-ids $ENVIRONMENT_ID --query 'Environments[0].ApplicationName' --output text)
+
+
+                  #Download build tools and compile WebAPI
+                  sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
+                  sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
+                  sudo yum install -y apache-maven
+                  sudo yum install -y java-1.8.0
+                  sudo yum install -y java-1.8.0-openjdk-devel
+                  export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
+                  mv settings.xml ./WebAPI/
+                  cd WebAPI
+                  mvn clean package -s settings.xml -P webapi-postgresql
+                  cd ..
+                  cp ./WebAPI/target/WebAPI.war .
+
+                  #Build Atlas "war" file to put at the root URL of the Tomcat server
+                  mv config-local.js ./Atlas/js/
+                  cd Atlas
+                  zip -r ../ROOT.war * 
+                  cd ..
+
+                  zip -r ohdsi-webapi-atlas-${Atlasv}.zip ROOT.war WebAPI.war .ebextensions
+                  aws s3 cp ohdsi-webapi-atlas-${Atlasv}.zip s3://$BUCKET_NAME 
+
+                  aws elasticbeanstalk create-application-version --region $REGION --application-name $APPLICATION_NAME --version-label ohdsi-webapi-atlas-${Atlasv}-${AWS::StackName} --source-bundle S3Bucket=$BUCKET_NAME,S3Key=ohdsi-webapi-atlas-${Atlasv}.zip
+                  aws elasticbeanstalk update-environment --region $REGION --environment-id $ENVIRONMENT_ID --version-label ohdsi-webapi-atlas-${Atlasv}-${AWS::StackName}
+
+                mode: 000777
+                owner: root
+                group: root
+              /tmp/settings.xml:
+                content: !Sub |
+                  <settings>
+                  <profiles>
+                    <profile>
+                      <id>webapi-postgresql</id>
+                      <properties>
+                        <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
+                        <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
+                        <datasource.username>ohdsi_app_user</datasource.username>
+                        <datasource.password>app1</datasource.password>
+                        <datasource.dialect>postgresql</datasource.dialect>
+                        <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
+                        <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
+                        <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
+                        <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
+                        <flyway.datasource.password>admin1</flyway.datasource.password>
+                        <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
+                        <security.enabled>false</security.enabled>
+                        <security.token.expiration>43200</security.token.expiration>
+                        <security.origin>*</security.origin>
+                        <security.ssl.enabled>false</security.ssl.enabled>
+                        <security.oauth.callback.ui>http://localhost/atlas/#/welcome</security.oauth.callback.ui>
+                        <security.oauth.callback.api>http://localhost:8080/WebAPI/user/oauth/callback</security.oauth.callback.api>
+                        <security.oauth.google.apiKey></security.oauth.google.apiKey>
+                        <security.oauth.google.apiSecret></security.oauth.google.apiSecret>
+                        <security.oauth.facebook.apiKey></security.oauth.facebook.apiKey>
+                        <security.oauth.facebook.apiSecret></security.oauth.facebook.apiSecret>
+                      </properties> 
+                    </profile>  
+                  </profiles>
+                  </settings>              
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/config-local.js:
+                content: !Sub 
+                  - |
+                    define([], function () {
+                      var configLocal = {};
+                    
+                      configLocal.api = {
+                        name: 'My Organization Name',
+                        url: '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/'
+                      };
+                    
+                      return configLocal;
+                    });                    
+                  - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'elasticbeanstalk.com']]] }               
+                mode: 000664
+                owner: root
+                group: root        
+              /tmp/.ebextensions/httpd/conf.d/ssl.conf:
+                content: |
+                  LoadModule ssl_module modules/mod_ssl.so
+                  Listen 443
+                  <VirtualHost *:443>
+                  <Proxy *>
+                      Require all granted
+                  </Proxy>
+
+                  SSLEngine             on
+                  SSLCertificateFile    "/etc/pki/tls/certs/server.crt"
+                  SSLCertificateKeyFile "/etc/pki/tls/certs/server.key"
+                  SSLCipherSuite        EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
+                  SSLProtocol           All -SSLv2 -SSLv3
+                  SSLHonorCipherOrder   On
+                  SSLSessionTickets     Off
+
+                  Header always set Strict-Transport-Security "max-age=63072000; includeSubdomains; preload"
+                  Header always set X-Content-Type-Options nosniff
+
+                  ProxyPass / http://localhost:80/ retry=0
+                  ProxyPassReverse / http://localhost:80/
+                  ProxyPreserveHost on
+                  RequestHeader set X-Forwarded-Proto "https" early
+
+                  </VirtualHost>
+                mode: 000500
+                owner: root
+                group: root
+              /tmp/.ebextensions/00HIPAA.config:
+                content: |
+                  packages:
+                    yum:
+                      mod24_ssl : []
+                  commands:
+                    00mountencrypted:
+                      command: |
+                        #Create an encrypted EBS volume and mount it to store the HTTPD access_log and error_log.  Just in case PHI is written to these logs in error messages.
+                        mount='/var/log/tomcat8'
+                        if grep -qs "$mount" /proc/mounts; then
+                        echo "encrypted volume already mounted ..."
+                        else
+                        awszone=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                        awsregion=${awszone::-1}
+                        device='/dev/sdh'
+                        instanceId=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                        createJson=$(aws ec2 create-volume --size 4 --region $awsregion --availability-zone $awszone --volume-type standard --encrypted)
+                        volumeId=$(echo $createJson | sed -n 's/.*"VolumeId": "\(.*\)",/\1/p' | cut -d '"' -f 1)
+                        aws ec2 wait volume-available --region $awsregion --volume-ids $volumeId
+                        aws ec2 attach-volume --volume-id $volumeId --instance-id $instanceId --device $device --region $awsregion
+                        aws ec2 wait volume-in-use --region $awsregion --volume-ids $volumeId
+                        aws ec2 modify-instance-attribute --instance-id $instanceId --block-device-mappings DeviceName=$device,Ebs={DeleteOnTermination=true} --region $awsregion
+                        while [ `stat ${device} 2>/dev/null 1>&2; echo $?` -ne 0 ]; do
+                        sleep 1
+                        done
+                        mkfs -t ext3 $device
+                        mkdir /tmp/mnt
+                        cp -a $mount /tmp/mnt
+                        mount $device $mount
+                        cp -a /tmp/mnt $mount
+                        chown tomcat.tomcat /var/log/tomcat8
+                        fi
+                      ignoreErrors: false
+                    01SelfSignedSSL:
+                      command: |
+                        #Generate a self-signed cert to be used between the AWS ALB and the Apache PHP servers.
+                        if [ ! -f /etc/pki/tls/certs/server.key ]; then
+                        openssl genrsa 2048 > server.key
+                        openssl req -new -key server.key -out csr.pem -subj "/C=US/ST=WA/L=Seattle/O=anon/OU=anon/CN=none/emailAddress=none"
+                        openssl x509 -req -days 365 -in csr.pem -signkey server.key -out server.crt
+                        cp server.crt server.key /etc/pki/tls/certs/
+                        rm -f server.crt server.key csr.pem
+                        else
+                        echo "Already have a self-signed private key.  This must be an application redeployment"
+                        fi
+                    02InstallSSMClient:
+                      command: |
+                        # Install SSM client
+                        yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                        restart amazon-ssm-agent
+                mode: 000500
+                owner: root
+                group: root
+    Properties:
+      InstanceInitiatedShutdownBehavior: 'terminate'
+      InstanceType: 't2.medium'
+      KeyName: !Ref 'EC2KeyName'
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds: 
+        - !Ref SGApp
+      SubnetId: !Ref SubnetAppA
+      UserData:
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          export RDS_ENDPOINT=${RDSEndpoint}
+          export EB_ENDPOINT=${EBEndpoint}.${AWS::Region}.elasticbeanstalk.com
+          export REDSHIFT_ENDPOINT=${RedshiftEndpoint}
+          export BUCKET_NAME=${EBBucket}
+          export DATABASE_PASSWORD=${DatabaseMasterPassword}
+          export AWS_DEFAULT_REGION=${AWS::Region}
+          export REGION=${AWS::Region}
+          export ENVIRONMENT_ID=${EBEnvironmentId}
+          yum update -y aws-cli 
+          yum install -y awslogs git
+
+          #Use cfn-init to grab and apply the files specified in the above UserData
+          /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
+          cd /tmp
+          git clone -b ${Atlasv} https://github.com/OHDSI/Atlas
+          git clone -b ${WebAPIv} https://github.com/OHDSI/WebAPI
+          sudo service awslogs start
+          aws s3 mb s3://${EBBucket}
+          sudo -E bash ./upgrade_ohdsi.sh &>> log.txt
+          aws s3 cp log.txt s3://$BUCKET_NAME
+          #Shutdown and terminate this temporary instance 
+          sleep 20
+          shutdown -h now

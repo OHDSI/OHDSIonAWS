@@ -1,0 +1,207 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Request a DNS-validated ACM cert
+
+Parameters:
+  R53HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: >
+      The Route 53 hosted zone for the domains you are requesting a
+      certificate for.
+
+  R53DomainName:
+    Type: String
+    Description: >
+      Fully qualified domain name (FQDN), such as www.example.com,
+      that you want to secure with an ACM certificate.
+    AllowedPattern: '^(\*\.)?(((?!-)[A-Za-z0-9-]{0,62}[A-Za-z0-9])\.)+((?!-)[A-Za-z0-9-]{1,62}[A-Za-z0-9])$'
+    ConstraintDescription: >
+      The first domain name you enter cannot exceed 63 octets,
+      including periods. Each subsequent Subject Alternative Name
+      (SAN), however, can be up to 253 octets in length.
+  SubjectAlternativeNames:
+    Type: CommaDelimitedList
+    Description: >
+      Additional FQDNs to be included in the Subject Alternative Name
+      extension of the ACM certificate. The maximum number of domain
+      names that you can add to an ACM certificate is 100. However,
+      the initial limit is 10 domain names. The maximum length of a
+      SAN DNS name is 253 octets. The name is made up of multiple
+      labels separated by periods. No label can be longer than 63
+      octets.
+    Default: ''
+
+Resources:
+  DNSValidatedCertificateResourceFunctionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - route53:ChangeResourceRecordSets
+              - route53:ListResourceRecordSets
+            Resource:
+              - !Sub 'arn:aws:route53:::hostedzone/${R53HostedZoneId}'
+          - Effect: Allow
+            Action:
+              - acm:DescribeCertificate
+              - acm:DeleteCertificate
+              - acm:RequestCertificate
+            Resource:
+              - '*'
+
+  DNSValidatedCertificateResourceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref DNSValidatedCertificateResourceFunctionPolicy
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  DNSValidatedCertificateResourceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import botocore.exceptions
+          import cfnresponse
+          import logging
+          import time
+
+          from contextlib import contextmanager
+
+          acm = boto3.client('acm')
+          route53 = boto3.client('route53')
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          @contextmanager
+          def suppress_boto_clienterror(*error_codes):
+              try:
+                  yield
+              except botocore.exceptions.ClientError as e:
+                  logger.exception(e)
+                  if e.response['Error']['Code'] not in error_codes:
+                      raise e
+
+          class ACMIssuanceError(Exception): pass
+
+          def get_validation_resource_records(certificate_arn):
+              for attempt in range(10):
+                  cert_info = acm.describe_certificate(CertificateArn=certificate_arn)
+                  dvos = cert_info['Certificate']['DomainValidationOptions']
+
+                  try:
+                      return [dvo['ResourceRecord'] for dvo in dvos]
+                  except KeyError:
+                      logger.info('Waiting for validation records, attempt {}'.format(attempt+1))
+                      time.sleep(10)
+
+              raise ACMIssuanceError('Timed out waiting for validation records')
+
+          def change_records(certificate_arn, hosted_zone_id, action):
+              for resource_record in get_validation_resource_records(certificate_arn):
+                  logger.info('{}: {}'.format(action, resource_record['Name']))
+                  route53.change_resource_record_sets(
+                      HostedZoneId=hosted_zone_id,
+                      ChangeBatch={
+                          'Changes': [{
+                              'Action': action,
+                              'ResourceRecordSet': {
+                                  'Name': resource_record['Name'],
+                                  'Type': resource_record['Type'],
+                                  'TTL': 60,
+                                  'ResourceRecords': [{'Value': resource_record['Value']}]
+                              }
+                          }]
+                      })
+
+          def wait_for_issuance(certificate_arn):
+              for attempt in range(15):
+                  cert_info = acm.describe_certificate(CertificateArn=certificate_arn)
+                  status = cert_info['Certificate']['Status']
+
+                  if status == 'PENDING_VALIDATION':
+                      logger.info('Waiting for issuance, attempt {}'.format(attempt+1))
+                      time.sleep(20)
+                      continue
+
+                  if status == 'ISSUED':
+                      logger.info('Certificate issued!')
+                      return
+
+                  raise ACMIssuanceError('Bad status "{}"'.format(status))
+
+          def lambda_handler(event, context):
+              responseData = {}
+              resource_id = event.get('PhysicalResourceId')
+              props = event['ResourceProperties']['Parameters']
+
+              try:
+                  if event['RequestType'] == 'Delete':
+                      with suppress_boto_clienterror('InvalidChangeBatch', 'ResourceNotFoundException'):
+                          change_records(resource_id, props['HostedZoneId'], 'DELETE')
+                          acm.delete_certificate(CertificateArn=resource_id)
+
+                  else:
+                      args = {
+                          'DomainName': props['DomainName'],
+                          'IdempotencyToken': context.aws_request_id.replace('-',''),
+                          'ValidationMethod': 'DNS'
+                      }
+
+                      san_list = props.get('SubjectAlternativeNames')
+                      if san_list:
+                          args['SubjectAlternativeNames'] = san_list
+
+                      logger.info(str(args))
+                      resp = acm.request_certificate(**args)
+                      logger.info(str(resp))
+                      resource_id = resp['CertificateArn']
+                      responseData['CertificateArn'] = resource_id
+                      logger.info('Certificate requested: {}'.format(resource_id))
+
+                      change_records(resource_id, props['HostedZoneId'], 'UPSERT')
+                      wait_for_issuance(resource_id)
+
+              except Exception as e:
+                  logger.exception(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, responseData, resource_id)
+              else:
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, resource_id)
+      Handler: index.lambda_handler
+      Runtime: python3.6
+      Timeout: 300
+      Role: !GetAtt DNSValidatedCertificateResourceFunctionRole.Arn
+
+  Certificate:
+    Type: Custom::DNSValidatedCertificate
+    Properties:
+      ServiceToken: !GetAtt DNSValidatedCertificateResourceFunction.Arn
+      Parameters:
+        HostedZoneId: !Ref R53HostedZoneId
+        DomainName: !Ref R53DomainName
+        SubjectAlternativeNames: !Ref SubjectAlternativeNames
+
+Outputs:
+  CertificateArn:
+    Value: !GetAtt Certificate.CertificateArn
