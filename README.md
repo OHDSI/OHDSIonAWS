@@ -29,7 +29,7 @@ The features of using this architecture are as follows:
 * [The design results in a reasonable monthly cost](https://calculator.s3.amazonaws.com/index.html#r=IAD&key=calc-77D8B2E5-353A-4D7B-B482-023A42F221BB) 
 
 A high-level diagram showing how the different components of OHDSI map to AWS Services is shown below.  
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi_architecture_block_diagram.png "AWS OHDSI High-Level Diagram")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi_architecture_block_diagram.png "AWS OHDSI High-Level Diagram")
 
 Starting from the user, public Internet DNS services are (optionally) provided by **Amazon Route 53**.  This gives you the ability to automatically add a domain to an existing hosted zone in Route 53 (i.e. ohdsi.example.edu if example.edu is already hosted in Route 53).  In addition, if you are deploying a new domain to Route 53, an SSL certificate can be automatically generated and applied using **AWS Certificate Manager (ACM)**.  This enables HTTPS communication and ensures the data sent from the users is encrypted in-transit (in accordance with HIPAA).  HTTPS communication is also used between the Application Load Balancers and the Atlas/WebAPI servers.
 
@@ -46,7 +46,7 @@ The default configuration of this environment is to have your Atlas and RStudio 
 **Amazon SageMaker** is used to build, train, and deploy machine learning models to predict patient health outcomes developed with the OHDSI PatientLevelPrediction R package.  Amazon SageMaker is a fully-managed service that covers the entire machine learning workflow to label and prepare your data, choose an algorithm, train the algorithm, tune and optimize it for deployment, make predictions, and take action. Your models get to production faster with much less effort and lower cost.
 
 A more detailed, network-oriented diagram of this environment is shown following.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi_architecture_network_diagram.png "AWS OHDSI Network Diagram")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi_architecture_network_diagram.png "AWS OHDSI Network Diagram")
 
 ## OHDSI on AWS deployment instructions
 Before deploying an application on AWS that transmits, processes, or stores protected health information (PHI) or personally identifiable information (PII), address your organization's compliance concerns. Make sure that you have worked with your internal compliance and legal team to ensure compliance with the laws and regulations that govern your organization. To understand how you can use AWS services as a part of your overall compliance program, see the [AWS HIPAA Compliance whitepaper](https://d0.awsstatic.com/whitepapers/compliance/AWS_HIPAA_Compliance_Whitepaper.pdf). With that said, we paid careful attention to the HIPAA control set during the design of this solution.
@@ -61,7 +61,7 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
    0.2. This template will create two S3 buckets.  By default, AWS accounts have a limit of 100 S3 buckets.  If you are near that limit, please either delete some unused S3 buckets or [request a limit increase](https://console.aws.amazon.com/support/cases#/create?issueType=service-limit-increase) before running this template.
 
 1. Begin the deployment process by clicking the **Launch Stack** button at the top of this page.  This will take you to the [CloudFormation Manage Console](https://console.aws.amazon.com/cloudformation/) and specify the OHDSI Cloudformation template URL (https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml).  In the top-right corner of the console, choose the AWS Region in which you'd like to deploy the OHDSI environment, and then click **Next**. 
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi_launch_cfn_template.gif "CFN Select Template")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi_launch_cfn_template.gif "CFN Select Template")
 
 2. The next screen will take in all of the parameters for your OHDSI environment.  A description is provided for each parameter to help explain its function, but following is also a detailed description of how to use each parameter.  At the top, provide a unique **Stack Name**.    
 
@@ -101,7 +101,7 @@ To load these data sources automatically, you provide the schema names you want 
 | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. |
 
 Creating and S3 bucket and uploading the 'Source'.sql files:
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/upload_data_sources.gif "Uploading OMOP data sources.")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/upload_data_sources.gif "Uploading OMOP data sources.")
 
 #### Web Tier parameters
 The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances behind a load balancer.  This allows Atlas/WebAPI to be fault tolerant and highly available while also growing and shrinking the number of instances based on load.
@@ -134,32 +134,32 @@ When you've provided appropriate values for the **Parameters**, choose **Next**.
 4. On the next screen, you can review what will be deployed. At the bottom of the screen, there is a check box for you to acknowledge that **AWS CloudFormation might create IAM resources with custom names** and **AWS CloudFormation might require the following capability: CAPABILITY_AUTO_EXPAND**. This is correct; the template being deployed creates four custom roles that give permission for the AWS services involved to communicate with each other. Details of these permissions are inside the CloudFormation template referenced in the URL given in the first step. Check the box acknowledging this and choose **Next**.
 
 5. You can watch as CloudFormation builds out your OHDSI environment. A CloudFormation deployment is called a *stack*. The parent stack creates several child stacks depending on the parameters you provided.  When all the stacks have reached the green CREATE_COMPLETE status, as shown in the screenshot following, then the OHDSI architecture has been deployed.  Select the **Outputs** tab to find your OHDSI environment URLs.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/click_outputs.gif "Clicking OHDSI Urls")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/click_outputs.gif "Clicking OHDSI Urls")
 
 
 ## Using RStudio
 Inside of each user's home directory in RStudio is a file called **ConnectionDetails.R**.  It contains all of the connection parameters needed to use OHDSI components like [PatientLevelPrediction](https://github.com/OHDSI/PatientLevelPrediction), [CohortMethod](https://github.com/OHDSI/CohortMethod), or [Achilles](https://github.com/OHDSI/Achilles).  
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/rstudio_connection_details.png "ConnectionDetails.R")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/rstudio_connection_details.png "ConnectionDetails.R")
 
 These components and all of their dependencies are also pre-installed and can be invoke simply by issueing the command ```library(PatientLevelPrediction)```, ```library(CohortMethod)```, or ```library(Achilles)```.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/rstudio_ohdsi_libraries.png "ConnectionDetails.R")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/rstudio_ohdsi_libraries.png "ConnectionDetails.R")
 
 Users can change their passwords after logging in by going to the **Terminal** and using the Linux ``# passwd`` command as shown following.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/change_password.png "Change Password")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/change_password.png "Change Password")
 
 New users can also be added to the RStudio server by logging in with a user who has sudo access and using the Linux ``# adduser`` command as shown following.  Recall that the first user you provided in the RStudio user list parameter was given sudo access.  
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/adduser.png "Add User")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/adduser.png "Add User")
 
 
 ## Troubleshooting Deployments
 
 #### CloudFormation Events
 A CloudFormation deployment is called a *stack*.  The OHDSI template deploys a number of child or *nested* stacks depending on which options you choose.  If one of the steps in any of these stacks fail during deployment, all of the stacks will be *rolled back*, meaning that they will be deleted in the reverse order that they were deployed.  In order to understand why a deployment rolled back, it can be helpful to look at the *events* that CloudFormation recorded during deployment.  You can do this by looking at the Events tab of each stack.  If a stack has already been rolled back, you will have to change the *filter* in the upper-left corner of the CloudFormation Management Console from it's default of *Active* to *Deleted* to see it's event log.  A demonstration of this is shown following.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/cloudformation_events.gif "Browsing CloudFormation Events")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/cloudformation_events.gif "Browsing CloudFormation Events")
 
 #### Build Log
 During the build process a temporary Linux instance is created that compiles WebAPI, combines it with Atlas, loads all of your OMOP data sets into Redshift, runs Achilles, and performs various other configuration functions.  You can see a log of the work that it did by looking in the [**CloudWatch Logs Management Console** under the *Log Group* ```ohdsi-temporary-ec2-instance-build-log```](https://console.aws.amazon.com/cloudwatch/home?logs%3A=#logStream:group=ohdsi-temporary-ec2-instance-build-log).
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/cloudwatch_logs.gif "Browsing Cloudwatch Logs")
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/cloudwatch_logs.gif "Browsing Cloudwatch Logs")
 
 ## On-going Operations
 At this point, you have a fully functioning and robust OHDSI environment to begin using.  Following are some helpful points to consider regarding how to support this environment on-going.
@@ -182,7 +182,7 @@ Using Amazon Redshift you can [implement audit logging](https://docs.aws.amazon.
 
 #### Access Running Atlas/WebAPI and RStudio Instances
 If you need to access the command line on the running Atlas/WebAPI or RStudio instances, this can be done by using the [AWS Systems Manager Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html).   It lets you manage your Amazon EC2 instances through an interactive one-click browser-based shell or through the AWS CLI. Session Manager provides secure and auditable instance management without the need to open inbound ports, maintain bastion hosts, or manage SSH keys.  Just go to the the [AWS Systems Manager Session Manager Console](https://console.aws.amazon.com/systems-manager/session-manager/) and **click Start session**.  You'll then see a list of your OHDSI instances.  Select the one that you want to access and **click Start session**.  Now you have a shell with sudoers access.
-![alt-text](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi-session-manager.gif "OHDSI Session Manager demo") 
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi-session-manager.gif "OHDSI Session Manager demo") 
 
 #### Fault tolerance and backups
 Elastic Beanstalk keeps a highly available copy of your current and previous Atlas/WebAPI application versions as well as your environment configuration.  This can be used to re-deploy or re-create your Atlas/WebAPI application environment at any time and serves as a 'backup'.  You can also [clone an Elastic Beanstalk environment](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/using-features.managing.clone.html) if you want a temporary environment for testing or as a part of a recovery exercise.  High availability and fault tolerance are provided are achieved by [configuring your environment to have a minimum of 2 instances](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/using-features.managing.as.html).  Elastic Beanstalk will deploy these Atlas/WebAPI application instances over multiple availability zones.  If an instance is unhealthy it will automatically be removed and replaced.
