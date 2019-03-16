@@ -66,13 +66,12 @@ Parameters:
   EBEndpoint:
     Description: "The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com)"
     Type: String
-    Default: myREDCapp
   UseRoute53Boolean:
     AllowedValues:
       - true
       - false
     Default: true
-    Description: Specifies whether a record set should be created in Route 53 for your REDCap domain name.  If not, you will recieve a default Elastic Beanstalk DNS name (e.g. redcap.us-east-1.elasticbeanstalk.com).
+    Description: Specifies whether a record set should be created in Route 53 for your OHDSI domain name.  If not, you will recieve a default Elastic Beanstalk DNS name (e.g. ohdsi.us-east-1.elasticbeanstalk.com).
     Type: String
   UseACMBoolean:
     AllowedValues:
@@ -87,7 +86,7 @@ Parameters:
     Default: us-east-1.elasticbeanstalk.com
   DomainName:
     AllowedPattern: ^$|(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
-    Description: '[ Optional, only if using Route53 ] The sub-domain name of the Project REDCap site.  This sub-domain will be prepended your specified Hosted Zone (e.g. redcap in redcap.example.edu).'
+    Description: '[ Optional, only if using Route53 ] The sub-domain name of the OHDSI site.  This sub-domain will be prepended your specified Hosted Zone (e.g. ohdsi in ohdsi.example.edu).'
     Type: String
   DatabaseMasterPassword:
     Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
@@ -295,7 +294,7 @@ Resources:
     DependsOn: EC2WaitCondition
     Properties:
       ApplicationName: !Ref OHDSIApp
-      Description: Elastic Beanstalk deployment of Project Redcap
+      Description: Elastic Beanstalk deployment of Atlas / WebAPI
       SolutionStackName: !Select [1, !Split ['"', !Select [0, !Split ['}', !Select [1, !Split [':', !GetAtt 'EC2WaitCondition.Data']]]]]]
       VersionLabel: Initial Version
       EnvironmentName: !Ref EBEndpoint
@@ -545,9 +544,9 @@ Resources:
                     [general]
                     state_file = /var/lib/awslogs/agent-state        
                     
-                    [REDCap-build-log]
+                    [ohdsi-build-log]
                     file = /tmp/log.txt
-                    log_group_name = ohdsi-temporary-ec2-instnace-build-log
+                    log_group_name = ohdsi-temporary-ec2-instance-build-log
                     log_stream_name = ${EB}-build-log
                   - { EB: !Ref EBEndpoint }
                 mode: 000664
@@ -580,15 +579,24 @@ Resources:
                   echo "ACCT_ID=" $ACCT_ID
                   echo "BUCKET_NAME=" $BUCKET_NAME
                   echo "DATABASE_PASSWORD=" $DATABASE_PASSWORD
+                  echo "OHDSIADMINUSERPWHASH=" $OHDSIADMINUSERPWHASH
+                  echo "OHDSIAPPUSERPWHASH=" $OHDSIAPPUSERPWHASH
                   export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
 
+                  sudo yum install -y nodejs npm --enablerepo=epel
                   sudo yum install -y postgresql
+
                   export PGPASSWORD=$DATABASE_PASSWORD
+                  sed -i 's!OHDSIADMINUSERPWHASH!'$OHDSIADMINUSERPWHASH'!' postgres_init_master.sql
+                  sed -i 's!OHDSIAPPUSERPWHASH!'$OHDSIAPPUSERPWHASH'!' postgres_init_master.sql
                   psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U master -a -f postgres_init_master.sql 
-                  export PGPASSWORD="admin1"
                   psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U ohdsi_admin_user -a -f postgres_init_ohdsi.sql
 
                   #Download build tools and compile WebAPI
+                  curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.32.0/install.sh | bash
+                  export NVM_DIR="/root/.nvm"
+                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                  nvm install 11.11.0
                   sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
                   sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
                   sudo yum install -y apache-maven
@@ -597,13 +605,15 @@ Resources:
                   export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
                   mv settings.xml ./WebAPI/
                   cd WebAPI
-                  mvn clean package -s settings.xml -P webapi-postgresql
+                  mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
                   cd ..
                   cp ./WebAPI/target/WebAPI.war .
 
                   #Build Atlas "war" file to put at the root URL of the Tomcat server
                   mv config-local.js ./Atlas/js/
                   cd Atlas
+                  npm config set strict-ssl false
+                  npm run build
                   zip -r ../ROOT.war * 
                   cd ..
 
@@ -750,7 +760,7 @@ Resources:
                           sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' postgres_init_sources-$i.sql   
 
                           #Load the sources reference table into the WebAPI Postgres database
-                          export PGPASSWORD="admin1"
+                          export PGPASSWORD=$DATABASE_PASSWORD
                           psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_admin_user -a -f postgres_init_sources-$i.sql
                           aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
 
@@ -787,14 +797,14 @@ Resources:
                   COMMENT ON ROLE ohdsi_app
                   IS 'Application groupfor OHDSI applications';
 
-                  CREATE ROLE ohdsi_admin_user LOGIN ENCRYPTED PASSWORD 'md58d34c863380040dd6e1795bd088ff4a9'
+                  CREATE ROLE ohdsi_admin_user LOGIN ENCRYPTED PASSWORD 'OHDSIADMINUSERPWHASH'
                   VALID UNTIL 'infinity';
                   -- password is admin1
                   GRANT ohdsi_admin TO ohdsi_admin_user;
                   COMMENT ON ROLE ohdsi_admin_user
                   IS 'Admin user account for OHDSI applications';
 
-                  CREATE ROLE ohdsi_app_user LOGIN ENCRYPTED PASSWORD 'md55cc9d81d14edce93a4630b7c885c6410'
+                  CREATE ROLE ohdsi_app_user LOGIN ENCRYPTED PASSWORD 'OHDSIAPPUSERPWHASH'
                   VALID UNTIL 'infinity';
                   -- password is app1
                   GRANT ohdsi_app TO ohdsi_app_user;
@@ -860,13 +870,13 @@ Resources:
                         <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
                         <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
                         <datasource.username>ohdsi_app_user</datasource.username>
-                        <datasource.password>app1</datasource.password>
+                        <datasource.password>${DatabaseMasterPassword}</datasource.password>
                         <datasource.dialect>postgresql</datasource.dialect>
                         <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
                         <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
                         <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
                         <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
-                        <flyway.datasource.password>admin1</flyway.datasource.password>
+                        <flyway.datasource.password>${DatabaseMasterPassword}</flyway.datasource.password>
                         <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
                         <security.enabled>false</security.enabled>
                         <security.token.expiration>43200</security.token.expiration>
@@ -1014,6 +1024,9 @@ Resources:
       SecurityGroupIds: 
         - !Ref SGApp
       SubnetId: !Ref SubnetAppA
+      Tags:
+        - Key: "Name"
+          Value: "ohdsi-temp-build-instance"
       UserData:
         Fn::Base64: !Sub 
           - | 
@@ -1030,6 +1043,9 @@ Resources:
             export CDM_VERSION=${OMOPv}
             export SOURCES=${Sources}
             export SOURCESBUCKET=${SourcesBucket}
+            export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+            export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+            
             yum update -y aws-cli 
             yum install -y awslogs git
 

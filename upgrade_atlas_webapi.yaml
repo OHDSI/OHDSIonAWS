@@ -190,6 +190,8 @@ Resources:
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -350,6 +352,10 @@ Resources:
 
 
                   #Download build tools and compile WebAPI
+                  curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.32.0/install.sh | bash
+                  export NVM_DIR="/root/.nvm"
+                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                  nvm install 11.11.0
                   sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
                   sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
                   sudo yum install -y apache-maven
@@ -358,13 +364,15 @@ Resources:
                   export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
                   mv settings.xml ./WebAPI/
                   cd WebAPI
-                  mvn clean package -s settings.xml -P webapi-postgresql
+                  mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
                   cd ..
                   cp ./WebAPI/target/WebAPI.war .
 
                   #Build Atlas "war" file to put at the root URL of the Tomcat server
                   mv config-local.js ./Atlas/js/
                   cd Atlas
+                  npm config set strict-ssl false
+                  npm run build
                   zip -r ../ROOT.war * 
                   cd ..
 
@@ -537,6 +545,8 @@ Resources:
           export ENVIRONMENT_ID=${EBEnvironmentId}
           yum update -y aws-cli 
           yum install -y awslogs git
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
 
           #Use cfn-init to grab and apply the files specified in the above UserData
           /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
@@ -549,4 +559,4 @@ Resources:
           aws s3 cp log.txt s3://$BUCKET_NAME
           #Shutdown and terminate this temporary instance 
           sleep 20
-          shutdown -h now
+          #shutdown -h now

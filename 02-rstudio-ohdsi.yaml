@@ -104,6 +104,9 @@ Parameters:
     Type: String
   RedshiftEndpoint: 
     Type: String
+  EBEndpoint:
+    Description: "The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com)"
+    Type: String
   DatabaseMasterPassword:
     Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
     Type: String
@@ -221,6 +224,9 @@ Resources:
       SecurityGroupIds: 
         - !Ref RStudioSecurityGroup
       SubnetId: !Ref VPCSubnet 
+      Tags:
+        - Key: "Name"
+          Value: "RStudio"
       BlockDeviceMappings: 
           - DeviceName: "/dev/xvda"
             Ebs: 
@@ -415,8 +421,8 @@ Resources:
 
             #Connection string for the WebAPI database on RDS Aurora PostgreSQL
             connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
-            server = \"${RDSEndpoint}/OHDSI\",
-            user = \"master\",
+            server = \"${RDSEndpoint}/OHDSI?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory\",
+            user = \"ohdsi_admin_user\",
             password = \"${DatabaseMasterPassword}\")
                   " > /home/'$username'/ConnectionDetails.R'
 

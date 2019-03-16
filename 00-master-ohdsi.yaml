@@ -396,11 +396,11 @@ Parameters:
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.6.0'
+    Default: 'v2.7.0-rc'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.6.0'
+    Default: 'v2.7.0-rc'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
