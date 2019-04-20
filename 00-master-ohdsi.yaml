@@ -63,11 +63,13 @@ Metadata:
         - CohortMethodv
         - SqlRenderv
         - DatabaseConnectorv
+        - DatabaseConnectorJarsv
         - OhdsiRToolsv
         - FeatureExtractionv
         - Cyclopsv
         - EmpiricalCalibrationv
         - OhdsiSharingv
+        - MethodEvaluationv
     - Label:
         default: VPC Networking (changing this is optional)
       Parameters:
@@ -109,7 +111,7 @@ Metadata:
       DatabaseMasterPassword:
         default: 'Aurora Postgres and Redshift master password'
       Sources:
-        default: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
+        default: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse.  The first source in the list will have its Vocabulary and Results schema priorty set to 1 for WebAPI.
       SourcesBucket:
         default: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
 
@@ -145,6 +147,8 @@ Metadata:
         default:  SqlRender Version
       DatabaseConnectorv:
         default:  DatabaseConnector Version
+      DatabaseConnectorJarsv:
+        default:  DatabaseConnectorJars Version
       OhdsiRToolsv:
         default: OhdsiRTools Version
       FeatureExtractionv:
@@ -155,6 +159,8 @@ Metadata:
         default:  EmpiricalCalibration Version
       OhdsiSharingv:
         default:  OhdsiSharing Version
+      MethodEvaluationv:
+        default: MethodEvaluation Version
 
       VPCcidr:
         default: VPC CIDR Range
@@ -246,7 +252,7 @@ Parameters:
       - ds2.xlarge
       - ds2.8xlarge
       - dc1.large
-    Default: dc1.large
+    Default: dc2.large
   NumRedshiftNodes:
     AllowedPattern: ^((?!0$)[1-2]?[0-9]|32)$
     ConstraintDescription: Must be a number between 1 and 32.
@@ -265,7 +271,7 @@ Parameters:
     Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
     Type: String
     AllowedPattern: ^([a-zA-Z0-9,])*$
-    Default: CMSDESynPUF1k,CMSDESynPUF23m
+    Default: CMSDESynPUF23m,CMSDESynPUF1k
   SourcesBucket:
     Description: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
     Type: String
@@ -303,7 +309,7 @@ Parameters:
       - r5.large 
       - r5.xlarge 
     ConstraintDescription: Must be a valid Amazon EC2 instance type.
-    Default: t2.micro
+    Default: t3.medium
     Description: The Amazon EC2 instance type for your web instances.
     Type: String
   WebAsgMax:
@@ -376,7 +382,7 @@ Parameters:
       - g3.8xlarge
       - g3.16xlarge
     ConstraintDescription: Valid instance type in the t2, m5, c5, r4, g2, p2, and g3 families
-    Default: t2.xlarge
+    Default: t3.xlarge
   RStudioHomeDirectorySize:
     Description: '[ Required ] The amount of encrypted disk space, in GBs, allocated to store RStudio users local data.'
     Type: Number
@@ -396,11 +402,11 @@ Parameters:
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.0-rc'
+    Default: 'v2.7.1'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.0-rc'
+    Default: 'v2.7.1'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -408,7 +414,7 @@ Parameters:
   PatientLevelPredictionv:
     Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v3.0.0'
+    Default: 'v3.0.2'
   CohortMethodv:
     Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -421,6 +427,10 @@ Parameters:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: 'v2.2.0'
+  DatabaseConnectorJarsv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.0.0'
   OhdsiRToolsv:
     Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -441,6 +451,10 @@ Parameters:
     Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: 'v0.1.3'
+  MethodEvaluationv:
+    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.0.1'
 
   VPCcidr:
     Description: (optional to change) CIDR IP Range for your VPC.
@@ -560,11 +574,13 @@ Resources:
         CohortMethodv: !Ref 'CohortMethodv'
         SqlRenderv: !Ref 'SqlRenderv'
         DatabaseConnectorv: !Ref 'DatabaseConnectorv'
+        DatabaseConnectorJarsv: !Ref 'DatabaseConnectorJarsv'
         OhdsiRToolsv: !Ref 'OhdsiRToolsv'
         FeatureExtractionv: !Ref 'FeatureExtractionv'
         Cyclopsv: !Ref 'Cyclopsv'
         EmpiricalCalibrationv: !Ref 'EmpiricalCalibrationv'
         OhdsiSharingv: !Ref 'OhdsiSharingv'
+        MethodEvaluationv: !Ref 'MethodEvaluationv'
         Achillesv: !Ref 'Achillesv'
         RDSEndpoint: !GetAtt 'DatabasesStack.Outputs.RDSEndpoint'
         RedshiftEndpoint: !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
@@ -614,6 +630,8 @@ Resources:
           !Ref 'SqlRenderv'
         DatabaseConnectorv: 
           !Ref 'DatabaseConnectorv'
+        DatabaseConnectorJarsv: 
+          !Ref 'DatabaseConnectorJarsv'
         Achillesv: 
           !Ref 'Achillesv'
         OhdsiRToolsv: 

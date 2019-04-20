@@ -111,11 +111,11 @@ Parameters:
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.3.1'
+    Default: 'v2.7.1'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.3.0'
+    Default: 'v2.7.1'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -132,6 +132,10 @@ Parameters:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: 'v2.1.0'
+  DatabaseConnectorJarsv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.0.0'
   EC2KeyName:
     Description: The EC2 Key Pair to use for the Atlas/WebAPI EC2 Instances.
     Type: AWS::EC2::KeyPair::KeyName
@@ -383,6 +387,9 @@ Resources:
           OptionName: SystemType
           Value: enhanced
         - Namespace: aws:elbv2:loadbalancer
+          OptionName: IdleTimeout
+          Value: 240
+        - Namespace: aws:elbv2:loadbalancer
           OptionName: SecurityGroups
           Value: !Ref SGPublic
         - Namespace: aws:elbv2:loadbalancer
@@ -508,6 +515,9 @@ Resources:
         - Namespace: aws:elasticbeanstalk:healthreporting:system
           OptionName: SystemType
           Value: enhanced
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: IdleTimeout
+          Value: 240
         - Namespace: aws:elbv2:loadbalancer
           OptionName: SecurityGroups
           Value: !Ref SGPublic
@@ -652,10 +662,10 @@ Resources:
                     sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
                     sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
                     if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
-                    sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
+                      sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
                     fi
                     if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
-                    sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
+                      sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
                     fi
 
                     mkdir /mnt/r-stuff
@@ -664,9 +674,12 @@ Resources:
                     pushd .
                     mkdir R-latest
                     cd R-latest
-                    wget https://cran.r-project.org/src/base/R-3/R-3.5.0.tar.gz
-                    tar -xzf R-3.5.0.tar.gz
-                    sudo yum install -y gcc gcc-c++ gcc-gfortran readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel
+                    wget https://cran.r-project.org/src/base/R-3/R-3.5.3.tar.gz
+                    tar -xzf R-3.5.3.tar.gz
+                    #Trying out Python
+                    sudo yum install -y python36 python36-devel python36-pip
+                    sudo yum install -y gcc gcc-c++ gcc-gfortran
+                    sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
                     cd R-3*
                     ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
                     make -j 8
@@ -687,6 +700,19 @@ Resources:
                     # fix java binding - R and packages have to be compiled with the same java version as hadoop
                     sudo R CMD javareconf
                     
+                    sudo R --no-save << R_SCRIPT
+                    install.packages(c('curl','reticulate', 'RJSONIO', 'httr', 'devtools', 'itertools', 'digest', 'Rcpp', 'functional', 'plyr', 'stringr', 'reshape2', 'caTools', 'rJava', 'devtools', 'DBI', 'ggplot2', 'dplyr', 'R.methodsS3', 'Hmisc', 'memoise', 'rjson', 'xml2', 'rvg', 'gdtools', 'png'), repos="http://cran.rstudio.com")
+                    R_SCRIPT
+
+                    #Connect R-Studio Instance to the load balancer
+                    if [ "$RSTUDIO_TARGET_GROUP_ARN" != "none" ]; then
+                        export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
+                        export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
+                        export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+
+                        aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
+                    fi
+
                     cd /tmp
                     #Deploy the OMOP CDM Schema to Redshift
                     export PGPASSWORD=$DATABASE_PASSWORD
@@ -719,6 +745,8 @@ Resources:
 
                     SOURCECOUNT=0
                     SOURCEDAEMONCOUNT=0
+                    SOURCEVOCABPRIORITY=0
+                    SOURCERESULTSPRIORITY=0
                     for i in $(echo $SOURCES | sed "s/,/ /g")
                     do
                           export PGPASSWORD=$DATABASE_PASSWORD
@@ -747,6 +775,15 @@ Resources:
                           #Create a WebAPI Sources DDL for this Source
                           cp postgres_init_sources.sql postgres_init_sources-$i.sql
                           let SOURCECOUNT+=1
+                          
+                          if [ "$SOURCECOUNT" = "1" ]; then
+                            SOURCEVOCABPRIORITY=1
+                            SOURCERESULTSPRIORITY=1
+                          else
+                            SOURCEVOCABPRIORITY=0
+                            SOURCERESULTSPRIORITY=0
+                          fi
+                          
                           sed -i 's!SOURCECOUNT!'$SOURCECOUNT'!' postgres_init_sources-$i.sql
                           let SOURCEDAEMONCOUNT+=1
                           sed -i 's!SOURCEDAEMONCOUNT1!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
@@ -754,10 +791,12 @@ Resources:
                           sed -i 's!SOURCEDAEMONCOUNT2!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
                           let SOURCEDAEMONCOUNT+=1
                           sed -i 's!SOURCEDAEMONCOUNT3!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCEVOCABPRIORITY!'$SOURCEVOCABPRIORITY'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCERESULTSPRIORITY!'$SOURCERESULTSPRIORITY'!' postgres_init_sources-$i.sql
                           sed -i 's!SOURCENAME_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
                           sed -i 's!SOURCENAME_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
                           sed -i 's!CDM_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
-                          sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' postgres_init_sources-$i.sql   
+                          sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' postgres_init_sources-$i.sql  
 
                           #Load the sources reference table into the WebAPI Postgres database
                           export PGPASSWORD=$DATABASE_PASSWORD
@@ -770,16 +809,11 @@ Resources:
                           sed -i 's!CDM_PLACEHOLDER!'$i'!' /tmp/achilles-$i.r
                           sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' /tmp/achilles-$i.r  
                           Rscript /tmp/achilles-$i.r
+                          aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
+
                     done
 
-                    #Connect R-Studio Instance to the load balancer
-                    if [ "$RSTUDIO_TARGET_GROUP_ARN" != "none" ]; then
-                        export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
-                        export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
-                        export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
 
-                        aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
-                    fi
                   - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'elasticbeanstalk.com']]] }
                 mode: 000777
                 owner: root
@@ -855,8 +889,8 @@ Resources:
                 content: |
                   INSERT INTO webapi.source (source_id, source_name, source_key, source_connection, source_dialect) VALUES (SOURCECOUNT, 'SOURCENAME_PLACEHOLDER', 'SOURCENAME_PLACEHOLDER', 'jdbc:redshift://REDSHIFT_ENDPOINT:5439/mycdm?user=master&password=DATABASE_PASSWORD', 'redshift');
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT1,SOURCECOUNT,0, 'CDM_PLACEHOLDER', 0);
-                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT2,SOURCECOUNT,1, 'CDM_PLACEHOLDER', 0);
-                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT3,SOURCECOUNT,2, 'RESULTS_PLACEHOLDER', 0);             
+                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT2,SOURCECOUNT,1, 'CDM_PLACEHOLDER', SOURCEVOCABPRIORITY);
+                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT3,SOURCECOUNT,2, 'RESULTS_PLACEHOLDER', SOURCERESULTSPRIORITY);             
                 mode: 000664
                 owner: root
                 group: root
@@ -918,6 +952,7 @@ Resources:
                   library(devtools)
                   devtools::install_github("ohdsi/SqlRender", ref = "${SqlRenderv}")
                   devtools::install_github("ohdsi/DatabaseConnector", ref = "${DatabaseConnectorv}")
+                  devtools::install_github("ohdsi/DatabaseConnectorJars", ref = "${DatabaseConnectorJarsv}")
                   devtools::install_github("ohdsi/OhdsiRTools", ref = "${OhdsiRToolsv}")
                   devtools::install_github("ohdsi/Achilles", ref = "${Achillesv}")
                   library(Achilles)
@@ -1009,6 +1044,17 @@ Resources:
                         # Install SSM client
                         yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
                         restart amazon-ssm-agent
+                    create_post_dir:
+                        command: "mkdir /opt/elasticbeanstalk/hooks/appdeploy/post"
+                        ignoreErrors: true
+                  files:
+                      "/opt/elasticbeanstalk/hooks/appdeploy/post/99_httpd_timeout_config.sh":
+                        mode: "000755"
+                        owner: root
+                        group: root
+                        content: |
+                          #Change Apache session timeout values for Atlas long running queries
+                          sudo sed -i -e '/Timeout / s/ .*/ 240/' /etc/httpd/conf/httpd.conf
                 mode: 000500
                 owner: root
                 group: root
@@ -1045,9 +1091,13 @@ Resources:
             export SOURCESBUCKET=${SourcesBucket}
             export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
             export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            
+  
             yum update -y aws-cli 
             yum install -y awslogs git
+
+            # Install SSM client
+            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            restart amazon-ssm-agent
 
             #Use cfn-init to grab and apply the files specified in the above UserData
             /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
