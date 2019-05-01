@@ -3,9 +3,16 @@
 ## Quick Start
 This repository allows you to quickly deploy an enterprise class, multi-user, scalable and fault tolerant OHDSI environment on AWS using the latest OHDSI tools.  If you are interested in a personal OHDSI learning environment you may be better served by the [OHDSI-in-a-box Project](https://github.com/OHDSI/OHDSI-in-a-Box).
 
-<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png"/></a> 
+| AWS Region Code | Name | Launch |
+| --- | --- | --- 
+| us-east-1 |US East (N. Virginia)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
+| us-east-2 |US East (Ohio)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
+| us-west-2 |US West (Oregon)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
+| eu-west-1 |EU (Ireland)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
+| eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
+| ap-southeast-2 |AP (Sydney)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
 
-Click the launch button above to begin the process of deploying an OHDSI environment on AWS CloudFormation. NOTE: This launch button already has the *U.S. Northen Virginia* region pre-selected as part of the URL (i.e., &region=us-east-1), but once you click the button, you can change your preferred deployment region in AWS by selecting it from the top bar of the AWS Console, after which you may need to provide the Amazon S3 Template URL (https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml).
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/latest_versions.png "Latest OHDSI Packages")
 
 ## Summary
 The Observational Health Data Sciences and Informatics [(OHDSI, pronounced "Odyssey") community](https://www.ohdsi.org/) is working toward this goal by producing data standards and open-source solutions to store and analyze observational health data.  This repository provides automation to deploy some of the OHDSI projects (Atlas, Achilles, WebAPI, PatientLevelPrediction and the OMOP Common Data Model) into AWS. By doing so, you can quickly and inexpensively implement a health data science and informatics environment.
