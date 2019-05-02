@@ -993,6 +993,62 @@ Resources:
                 mode: 000500
                 owner: root
                 group: root
+              /tmp/.ebextensions/httpd/conf/httpd.conf:
+                content: |
+                  # Managed by Elastic Beanstalk
+                  PidFile run/httpd.pid
+
+                  # Enable TCP keepclive
+                  Timeout 240
+                  KeepAlive On
+                  MaxKeepAliveRequests 100
+                  KeepAliveTimeout 240
+
+                  <IfModule worker.c>
+                  StartServers        10
+                  MinSpareThreads     240
+                  MaxSpareThreads     240
+                  ServerLimit         10
+                  MaxRequestWorkers          250
+                  MaxConnectionsPerChild 1000000
+                  </IfModule>
+
+                  Listen 80
+
+                  IncludeOptional conf.d/*.conf
+                  IncludeOptional conf.d/elasticbeanstalk/*.conf
+
+                  User apache
+                  Group apache
+
+                  CustomLog logs/access_log "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+                  TraceEnable off
+
+                  LoadModule alias_module modules/mod_alias.so
+                  LoadModule authz_host_module modules/mod_authz_host.so
+                  LoadModule log_config_module modules/mod_log_config.so
+                  LoadModule deflate_module modules/mod_deflate.so
+                  LoadModule headers_module modules/mod_headers.so
+                  LoadModule proxy_module modules/mod_proxy.so
+                  LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
+                  LoadModule proxy_ftp_module modules/mod_proxy_ftp.so
+                  LoadModule proxy_http_module modules/mod_proxy_http.so
+                  LoadModule proxy_ajp_module modules/mod_proxy_ajp.so
+                  LoadModule proxy_connect_module modules/mod_proxy_connect.so
+                  LoadModule cache_module modules/mod_cache.so
+                  LoadModule setenvif_module modules/mod_setenvif.so
+                  LoadModule rewrite_module modules/mod_rewrite.so
+                  LoadModule mpm_worker_module modules/mod_mpm_worker.so
+                  LoadModule autoindex_module modules/mod_autoindex.so
+                  LoadModule authz_core_module modules/mod_authz_core.so
+                  LoadModule unixd_module modules/mod_unixd.so
+                  LoadModule filter_module modules/mod_filter.so
+                  LoadModule slotmem_shm_module modules/mod_slotmem_shm.so
+                  LoadModule ssl_module modules/mod_ssl.so
+                  LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+                mode: 000500
+                owner: root
+                group: root
               /tmp/.ebextensions/00HIPAA.config:
                 content: |
                   packages:
