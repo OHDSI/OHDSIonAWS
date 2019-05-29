@@ -14,6 +14,17 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/latest_versions.png "Latest OHDSI Packages")
 
+
+| Sample Data Source | Size | Schema Name |
+| --- | --- | ---
+| Synthea | 1k persons | synthea1k |
+| Synthea | 100k persons | synthea100k |
+| Synthea | 2M persons | synthea23m |
+| CMS DeSynPUF | 1k persons | CMSDESynPUF1k |
+| CMS DeSynPUF | 100k persons | CMSDESynPUF100k |
+| CMS DeSynPUF | 2M persons | CMSDESynPUF23m |
+
+
 ## Topics
 * [OHDSI on AWS architecture and features](#ohdsi-on-aws-architecture-and-features)
 * [OHDSI on AWS deployment instructions](#ohdsi-on-aws-deployment-instructions)
