@@ -17,12 +17,12 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 
 | Sample Data Source | Size | Schema Name |
 | --- | --- | ---
-| Synthea | 1k persons | synthea1k |
-| Synthea | 100k persons | synthea100k |
-| Synthea | 2M persons | synthea23m |
-| CMS DeSynPUF | 1k persons | CMSDESynPUF1k |
-| CMS DeSynPUF | 100k persons | CMSDESynPUF100k |
-| CMS DeSynPUF | 2M persons | CMSDESynPUF23m |
+| Synthea | 1,000 persons | synthea1k |
+| Synthea | 100,000 persons | synthea100k |
+| Synthea | >2,000,000 persons | synthea23m |
+| CMS DeSynPUF | 1,000 persons | CMSDESynPUF1k |
+| CMS DeSynPUF | 100,000 persons | CMSDESynPUF100k |
+| CMS DeSynPUF | >2,000,000 persons | CMSDESynPUF23m |
 
 
 ## Topics
