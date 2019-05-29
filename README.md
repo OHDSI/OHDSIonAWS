@@ -17,12 +17,12 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 
 | Sample Data Source | Size | Schema Name |
 | --- | --- | ---
-| Synthea | 1,000 persons | synthea1k |
-| Synthea | 100,000 persons | synthea100k |
-| Synthea | >2,000,000 persons | synthea23m |
-| CMS DeSynPUF | 1,000 persons | CMSDESynPUF1k |
-| CMS DeSynPUF | 100,000 persons | CMSDESynPUF100k |
-| CMS DeSynPUF | >2,000,000 persons | CMSDESynPUF23m |
+| [Synthea](https://github.com/synthetichealth/synthea) | 1,000 persons | synthea1k |
+| [Synthea](https://github.com/synthetichealth/synthea) | 100,000 persons | synthea100k |
+| [Synthea](https://github.com/synthetichealth/synthea) | >2,000,000 persons | synthea23m |
+| [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 1,000 persons | CMSDESynPUF1k |
+| [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 100,000 persons | CMSDESynPUF100k |
+| [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | >2,000,000 persons | CMSDESynPUF23m |
 
 
 ## Topics
