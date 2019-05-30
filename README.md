@@ -12,9 +12,27 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
 | ap-southeast-2 |AP (Sydney)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/new?stackName=OHDSI&templateURL=https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml) |
 
-![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/latest_versions.png "Latest OHDSI Packages")
+### Included OHDSI Projects
+| OHDSI Component | Version |
+| --- | --- 
+| OMOP Common Data Model | v5.3.1 |
+| Atlas | v2.7.1 |
+| WebAPI | v2.7.1 | 
+| Achilles | v1.6.5 |
+| PatientLevelPrediction | v3.0.2 |
+| CohortMethod | v3.0.2 |
+| SqlRender | v1.5.2 |
+| DatabaseConnector | v2.2.0 |
+| DatabaseConnectorJars | v1.0.0 |
+| SqlRender | v1.6.0 |
+| OhdsiRTools | v1.5.5 |
+| FeatureExtraction | v2.1.5 |
+| Cyclops | v2.0.0 |
+| EmpiricalCalibration | v1.3.6 |
+| OhdsiSharing | v0.1.3 |
+| MethodEvaluation | v1.0.1 |
 
-
+### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
 | --- | --- | ---
 | [Synthea](https://github.com/synthetichealth/synthea) | 1,000 persons | synthea1k |
