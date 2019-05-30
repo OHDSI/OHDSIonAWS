@@ -93,7 +93,7 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 
    0.2. This template will create two S3 buckets.  By default, AWS accounts have a limit of 100 S3 buckets.  If you are near that limit, please either delete some unused S3 buckets or [request a limit increase](https://console.aws.amazon.com/support/cases#/create?issueType=service-limit-increase) before running this template.
 
-1. Begin the deployment process by clicking the **Launch Stack** button at the top of this page.  This will take you to the [CloudFormation Manage Console](https://console.aws.amazon.com/cloudformation/) and specify the OHDSI Cloudformation template URL (https://s3.amazonaws.com/ohdsi-rstudio/00-master-ohdsi.yaml).  In the top-right corner of the console, choose the AWS Region in which you'd like to deploy the OHDSI environment, and then click **Next**. 
+1. Begin the deployment process by clicking the **Launch Stack** button at the top of this page that matches the AWS Region you'd like to use.  This will take you to the [CloudFormation Manage Console](https://console.aws.amazon.com/cloudformation/) and specify the OHDSI Cloudformation template.  Then click the **Next** button in the lower-right corner. 
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi_launch_cfn_template.gif "CFN Select Template")
 
 2. The next screen will take in all of the parameters for your OHDSI environment.  A description is provided for each parameter to help explain its function, but following is also a detailed description of how to use each parameter.  At the top, provide a unique **Stack Name**.    
