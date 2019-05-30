@@ -126,9 +126,9 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 #### Database Tier - Sources parameters
 These parameters allow you to specify any number of OMOP formatted data sources that will be automatically loaded into your OHDSI environment.  After they are loaded, the Achilles project will be used to populate a Results schema for each source enabling population-level visualizations within Atlas and also data quality feedback from Achilles Heel.
 
+##### Included sample data sources
 Ultimately, you will want to provide your own custom data sources, but to get started there are several sample, synthetic data sources available for you to use.  They are listed in the table below.
 
-###### Included sample data sources
 | Sample Data Source | Size | Schema Name |
 | --- | --- | ---
 | [Synthea](https://github.com/synthetichealth/synthea) | 1,000 persons | synthea1k |
@@ -138,7 +138,7 @@ Ultimately, you will want to provide your own custom data sources, but to get st
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 100,000 persons | CMSDESynPUF100k |
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | >2,000,000 persons | CMSDESynPUF23m |
 
-###### Using your own custom data sources
+##### Using your own custom data sources
 To configure your own custom data source, provide the schema names you want to use (i.e. CMSDESynPUF1k) and an S3 bucket that contains matching named files (i.e. CMSDESynPUF1k.sql) with Redshift-compatible SQL statements to load the OMOP tables.  Examples of these load files can be found in this repository [CMSDESynPUF1k.sql](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF1k.sql) and [CMSDESynPUF23m](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF23m.sql).  Please note the top of the files must set the search path to the specified schema name (i.e. ```SET search_path to CMSDESynPUF1k;```).  Documnetation provides more information on [using the Redshift COPY command](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html).
 
 |Parameter Name| Description|
