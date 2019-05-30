@@ -95,18 +95,18 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 
 0.2. This template will create two S3 buckets.  By default, AWS accounts have a limit of 100 S3 buckets.  If you are near that limit, please either delete some unused S3 buckets or [request a limit increase](https://console.aws.amazon.com/support/cases#/create?issueType=service-limit-increase) before running this template.
 
-##### Begin deployment
+#### Begin deployment
 1. Begin the deployment process by clicking the **Launch Stack** button at the top of this page that matches the AWS Region you'd like to use.  This will take you to the [CloudFormation Manage Console](https://console.aws.amazon.com/cloudformation/) and specify the OHDSI Cloudformation template.  Then click the **Next** button in the lower-right corner. 
 
 2. The next screen will take in all of the parameters for your OHDSI environment.  A description is provided for each parameter to help explain its function, but following is also a detailed description of how to use each parameter.  At the top, provide a unique **Stack Name**.    
 
-#### General AWS parameters
+##### General AWS parameters
 |Parameter Name| Description|
 |---------------|-----------|
 | EC2 Key Pair | **Required** You must choose a key pair.  This will allow you SSH access into your WebAPI/Atlas and RStudio instances.  To learn more about administering the instances in this OHDSI environment, see the **On-going Operations** section below.|
 | Limit access to IP address range? | **Required** This parameter allows you to limit the IP address range that can access your Atlas and RStudio servers.  It uses [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing).  The default of 0.0.0.0/0 will allow access from any address.|
 
-#### DNS and SSL parameters
+##### DNS and SSL parameters
 |Parameter Name| Description|
 |--------------|------------|
 | Elastic Beanstalk Endpoint Name | **Required** This unique name will be combined with [AWS Region identifier](https://docs.aws.amazon.com/general/latest/gr/rande.html#elasticbeanstalk_region) (i.e. ```us-east-1```) to determine the web address for your Atlas and RStudio servers.  The Elastic Beanstalk URL (will be rendered http://(EBEndpointName).(region).elasticbeanstalk.com).  You can check to see if an endpoint name is in use by checking for an existing DNS entry using the 'nslookup' command from your Windows, MacOS, or Linux terminal: ```# nslookup (EBEndpoint).(region).elasticbeanstalk.com```.  If nslookup returns an IP address, that means that the name is in use and you should pick a different name. You need to pick an Elastic Beanstalk Endpoint Name even if you are using a Route53 DNS entry. |
@@ -116,7 +116,7 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 | Route53 Hosted Zone Domain Name | Optional, only needed if using Route53.  The Route 53 hosted zone domain name to create the site domain in (e.g. example.edu).  You can find this value by looking up your Hosted Zone in the [Route53 Management Console](https://console.aws.amazon.com/route53/). |
 | Route53 Site Domain | Optional, only needed if using Route53.  The sub-domain name you want to use for your OHDSI implementation. This name will be prepended your specified Hosted Zone Domain Name (e.g. ohdsi in ohdsi.example.edu). |
 
-#### Database Tier parameters
+##### Database Tier parameters
 |Parameter Name| Description|
 |--------------|------------|
 | Use Primary and Standy Database Instances? | Specifies whether to deploy the AWS Aurora PostgreSQL WebAPI database in a Multi-AZ configuration.  This provides a stand-by database for high availability in the event the primary database fails. |
@@ -125,7 +125,7 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 | Number of nodes in your Redshift cluster | **Required** The number of nodes determines the overall processing power and storage space of your OMOP CDM data warehouse.  Additional scaling details can be found in [the Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-about-clusters-and-nodes). |
 | Aurora PostgreSQL and Redshift master password | **Required** This password will be used for the ```master``` user of the Aurora PostgreSQL WebAPI database and the Redshift OMOP CDM data warehouse.  It must have a length of 8-41 and be letters (upper or lower), numbers, and/or these special characters ```~#%^*_+,-```.
 
-#### Database Tier - Sources parameters
+##### Database Tier - Sources parameters
 These parameters allow you to specify any number of OMOP formatted data sources that will be automatically loaded into your OHDSI environment.  After they are loaded, the Achilles project will be used to populate a Results schema for each source enabling population-level visualizations within Atlas and also data quality feedback from Achilles Heel.
 
 |Parameter Name| Description|
@@ -133,7 +133,7 @@ These parameters allow you to specify any number of OMOP formatted data sources 
 | Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse | Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse.  By default, this is set to ```CMSDESynPUF23m,CMSDESynPUF100k,CMSDESynPUF1k,synthea23m,synthea100k,synthea1k``` which will load all six of the sample data sources.  Edit this list to include only the data sources you want in your environment.  This is also where you can specify your own custom data sources. |
 | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. |
 
-##### Included sample data sources
+###### Included sample data sources
 Ultimately, you will want to provide your own custom data sources, but to get started there are several sample, synthetic data sources available for you to use.  They are listed in the table below.
 
 | Sample Data Source | Size | Schema Name |
@@ -145,13 +145,13 @@ Ultimately, you will want to provide your own custom data sources, but to get st
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 100,000 persons | CMSDESynPUF100k |
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | >2,000,000 persons | CMSDESynPUF23m |
 
-##### Using your own custom data sources
+###### Using your own custom data sources
 To configure your own custom data source, provide the schema names you want to use (i.e. CMSDESynPUF1k) and an S3 bucket that contains matching named files (i.e. CMSDESynPUF1k.sql) with Redshift-compatible SQL statements to load the OMOP tables.  Examples of these load files can be found in this repository [CMSDESynPUF1k.sql](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF1k.sql) and [CMSDESynPUF23m](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF23m.sql).  Please note the top of the files must set the search path to the specified schema name (i.e. ```SET search_path to CMSDESynPUF1k;```).  Documnetation provides more information on [using the Redshift COPY command](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html).
 
 Creating and S3 bucket and uploading the 'Source'.sql files:
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/upload_data_sources.gif "Uploading OMOP data sources.")
 
-#### Web Tier parameters
+##### Web Tier parameters
 The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances behind a load balancer.  This allows Atlas/WebAPI to be fault tolerant and highly available while also growing and shrinking the number of instances based on load.
 
 |Parameter Name| Description|
@@ -160,7 +160,7 @@ The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances 
 | Minimum Atlas/WebAPI Instances | **Required** Specifies the minimum number of EC2 instances in the Web Autoscaling Group. A value of >1 will create a highly available environment by placing instances in multiple availability zones. |
 | Minimum Atlas/WebAPI Instances | **Required** Specifies the maximum number of EC2 instances in the Web Autoscaling Group. Must be greater than or equal to the Minimum Atlas/WebAPI Instances. |
 
-#### RStudio parameters
+##### RStudio parameters
 |Parameter Name| Description|
 |--------------|------------|
 | Instance Type for RStudio | This determines the processing power of your multi-user RStudio instance.  About 0.75GB per concurrent user is recommended.  For more information, see the [list of available EC2 instnance types](https://aws.amazon.com/ec2/instance-types/). |
@@ -168,11 +168,11 @@ The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances 
 | Comma-delimited user list for RStudio | Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server. The first user in the list will be given sudoers access. |
 | Bucket for PatientLevelPrediction SageMaker Models | Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you. |
 
-#### OHDSI Component Versions parameters
+##### OHDSI Component Versions parameters
 This parameters section contains a list of the OHDSI components that will be deployed in your environment and allows you to provide the version number as a parameter.  Default versions are provided that work well together, but you can provide your own version numbers if you desire.  The version number here must map to a **tagged release** or **branch** for that component in it's GitHub repository.  For instance, this is the [list of tagged releases for the OHDSI WebAPI project](https://github.com/OHDSI/WebAPI/tags).
 <img src="https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi_versions.png" width="500">
 
-#### VPC Networking parameters
+##### VPC Networking parameters
 As a part of this deployment a new [AWS Virtual Private Cloud (VPC)](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html) is created using private network addressing.  This parameters section allows you to provide your own addresses for this VPC which can be useful if you want to establish a [VPN connection](https://docs.aws.amazon.com/vpc/latest/userguide/vpn-connections.html), [AWS Direct Connect connection](https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html), or [VPC Peering connection](https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html).
 
 When you've provided appropriate values for the **Parameters**, choose **Next**.
