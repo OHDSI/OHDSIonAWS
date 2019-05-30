@@ -126,6 +126,11 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 #### Database Tier - Sources parameters
 These parameters allow you to specify any number of OMOP formatted data sources that will be automatically loaded into your OHDSI environment.  After they are loaded, the Achilles project will be used to populate a Results schema for each source enabling population-level visualizations within Atlas and also data quality feedback from Achilles Heel.
 
+|Parameter Name| Description|
+|--------------|------------|
+| Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse | Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse.  By default, this is set to ```CMSDESynPUF23m,CMSDESynPUF100k,CMSDESynPUF1k,synthea23m,synthea100k,synthea1k``` which will load all six of the sample data sources.  Edit this list to include only the data sources you want in your environment.  This is also where you can specify your own custom data sources. |
+| S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. |
+
 ##### Included sample data sources
 Ultimately, you will want to provide your own custom data sources, but to get started there are several sample, synthetic data sources available for you to use.  They are listed in the table below.
 
@@ -140,11 +145,6 @@ Ultimately, you will want to provide your own custom data sources, but to get st
 
 ##### Using your own custom data sources
 To configure your own custom data source, provide the schema names you want to use (i.e. CMSDESynPUF1k) and an S3 bucket that contains matching named files (i.e. CMSDESynPUF1k.sql) with Redshift-compatible SQL statements to load the OMOP tables.  Examples of these load files can be found in this repository [CMSDESynPUF1k.sql](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF1k.sql) and [CMSDESynPUF23m](https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/CMSDESynPUF23m.sql).  Please note the top of the files must set the search path to the specified schema name (i.e. ```SET search_path to CMSDESynPUF1k;```).  Documnetation provides more information on [using the Redshift COPY command](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html).
-
-|Parameter Name| Description|
-|--------------|------------|
-| Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse | Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse.  By default, this is set to ```CMSDESynPUF23m,CMSDESynPUF100k,CMSDESynPUF1k,synthea23m,synthea100k,synthea1k``` which will load all six of the sample data sources.  Edit this list to include only the data sources you want in your environment.  This is also where you can specify your own custom data sources. |
-| S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. | S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources. |
 
 Creating and S3 bucket and uploading the 'Source'.sql files:
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/upload_data_sources.gif "Uploading OMOP data sources.")
