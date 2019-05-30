@@ -271,7 +271,7 @@ Parameters:
     Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
     Type: String
     AllowedPattern: ^([a-zA-Z0-9,])*$
-    Default: CMSDESynPUF23m,CMSDESynPUF1k
+    Default: CMSDESynPUF23m,CMSDESynPUF100k,CMSDESynPUF1k,synthea23m,synthea100k,synthea1k
   SourcesBucket:
     Description: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
     Type: String
