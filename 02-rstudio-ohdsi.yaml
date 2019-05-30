@@ -373,6 +373,7 @@ Resources:
             devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org")
             #Latest version of PythonInR (0.1-6) gives the error Python.h: No such file or directory. Try "sudo apt-get install python-dev"
             devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org")
+            devtools::install_version("rJava", version = "0.9-11", repos = "http://cran.us.r-project.org")
             devtools::install_github("ohdsi/SqlRender", ref = "${SqlRenderv}")
             devtools::install_github("ohdsi/DatabaseConnector", ref = "${DatabaseConnectorv}")
             devtools::install_github("ohdsi/DatabaseConnectorJars", ref = "${DatabaseConnectorJarsv}")
