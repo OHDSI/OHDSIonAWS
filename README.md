@@ -182,6 +182,9 @@ When you've provided appropriate values for the **Parameters**, choose **Next**.
 4. On the next screen, you can review what will be deployed. At the bottom of the screen, there is a check box for you to acknowledge that **AWS CloudFormation might create IAM resources with custom names** and **AWS CloudFormation might require the following capability: CAPABILITY_AUTO_EXPAND**. This is correct; the template being deployed creates four custom roles that give permission for the AWS services involved to communicate with each other. Details of these permissions are inside the CloudFormation template referenced in the URL given in the first step. Check the box acknowledging this and choose **Next**.
 
 5. You can watch as CloudFormation builds out your OHDSI environment. A CloudFormation deployment is called a *stack*. The parent stack creates several child stacks depending on the parameters you provided.  When all the stacks have reached the green CREATE_COMPLETE status, as shown in the screenshot following, then the OHDSI architecture has been deployed.  Select the **Outputs** tab to find your OHDSI environment URLs.
+
+**NOTE:** Even though Atlas and RStudio are now accessible, in the background, the data sources you specified are still being loaded and the results schema is still being populated by Achilles.  This process can take anywhere from 30 minutes to several hours to complete depending on the number and size of data sources you specified and the size of your Redshift cluster.  During this time, browsing Data Sources in Atlas may not be successful and performance will be slow.  You can check the progress of your data sources by looking in the [Redshift Management Console](https://us-west-2.console.aws.amazon.com/redshift/home#cluster-list:), clicking on your cluster, and looking at the **Queries tab**.
+
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/click_outputs.gif "Clicking OHDSI Urls")
 
 
