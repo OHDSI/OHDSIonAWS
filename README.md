@@ -177,7 +177,7 @@ As a part of this deployment a new [AWS Virtual Private Cloud (VPC)](https://doc
 
 When you've provided appropriate values for the **Parameters**, choose **Next**.
 
-3. On the next screen, you can provide some other optional information like tags at your discretion, or just choose **Next**.
+3. On the next screen, you can provide some other optional information like Tags, alternative Permissions, etc. at your discretion.  This information isn't necessary for typical deployments. Then choose **Next**.
 
 4. On the next screen, you can review what will be deployed. At the bottom of the screen, there is a check box for you to acknowledge that **AWS CloudFormation might create IAM resources with custom names** and **AWS CloudFormation might require the following capability: CAPABILITY_AUTO_EXPAND**. This is correct; the template being deployed creates four custom roles that give permission for the AWS services involved to communicate with each other. Details of these permissions are inside the CloudFormation template referenced in the URL given in the first step. Check the box acknowledging this and choose **Next**.
 
