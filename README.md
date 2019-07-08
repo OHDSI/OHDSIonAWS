@@ -18,19 +18,21 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | OMOP Common Data Model | v5.3.1 |
 | Atlas | v2.7.1 |
 | WebAPI | v2.7.1 | 
-| Achilles | v1.6.5 |
-| PatientLevelPrediction | v3.0.2 |
+| Achilles | v1.6.3 |
+| PatientLevelPrediction | v3.0.5 |
 | CohortMethod | v3.0.2 |
-| SqlRender | v1.5.2 |
+| SqlRender | v1.6.2 |
 | DatabaseConnector | v2.2.0 |
 | DatabaseConnectorJars | v1.0.0 |
-| SqlRender | v1.6.0 |
-| OhdsiRTools | v1.5.5 |
-| FeatureExtraction | v2.1.5 |
-| Cyclops | v2.0.0 |
-| EmpiricalCalibration | v1.3.6 |
+| SqlRender | v1.6.2 |
+| OhdsiRTools | v1.7.0 |
+| FeatureExtraction | v2.2.4 |
+| Cyclops | v2.0.2 |
+| EmpiricalCalibration | v2.0.0 |
 | OhdsiSharing | v0.1.3 |
-| MethodEvaluation | v1.0.1 |
+| MethodEvaluation | v1.0.2 |
+| Hydra | v0.0.4 |
+| PredictionComparison | v1.0.0 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
