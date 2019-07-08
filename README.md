@@ -1,7 +1,7 @@
 # Enterprise, Multi-User OHDSI on AWS
 
 ## Quick Start
-This repository allows you to quickly deploy an enterprise class, multi-user, scalable and fault tolerant OHDSI environment on AWS using the latest OHDSI tools.  Choose 'Internet Accessible' to launch an OHDSI environment that users can access over the Internet.  'Private Network' allows you to specify your own Amazon Virtual Private Cloud (VPC) making the OHDSI environment only accessible from your organization's private network.  If you are interested in a personal OHDSI learning environment you may be better served by the [OHDSI-in-a-box Project](https://github.com/OHDSI/OHDSI-in-a-Box).
+This repository allows you to quickly deploy an enterprise class, multi-user, scalable and fault tolerant OHDSI environment on AWS using the latest OHDSI tools.  Choose **Internet Accessible** to launch an OHDSI environment that users can access over the Internet.  **Private Network** allows you to specify your own Amazon Virtual Private Cloud (VPC) making the OHDSI environment only accessible from your organization's private network.  If you are interested in a personal OHDSI learning environment you may be better served by the [OHDSI-in-a-box Project](https://github.com/OHDSI/OHDSI-in-a-Box).
 
 | AWS Region Code | Name | Launch Internet Accessible Environment | Launch Private Network Environment |
 | --- | --- | --- | --- |
@@ -55,6 +55,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 ## OHDSI on AWS architecture and features
 The features of using this architecture are as follows:
 * It’s deployed in an isolated, three-tier Amazon Virtual Private Cloud (Amazon VPC).
+* Can be deployed with access from the public Internet, or accessible only from within your organization's private network.
 * It deploys the OMOP CDM with clinical and vocabulary data, Atlas, WebAPI, Achilles, and RStudio with PatientLevelPrediction, CohortMethod, and many other R libraries.
 * It uses data-at-rest and in-flight encryption to respect the requirements of HIPAA.
 * It uses managed services from AWS; OS, middleware, and database patching and maintenance is largely automatic.
@@ -65,6 +66,15 @@ The features of using this architecture are as follows:
 
 A high-level diagram showing how the different components of OHDSI map to AWS Services is shown below.  
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/ohdsi_architecture_block_diagram.png "AWS OHDSI High-Level Diagram")
+
+##### Internet Accessible v. Private Network Architectures
+There are two versions of the OHDSIonAWS architecture, one that allows access to your OHDSI environment from the Internet and the other that only allows access from your organization's private network.  These two versions use the same underlying technical architecture for OHDSI and only vary in the way they access to the tool web interfaces.
+
+With the **Internet Accessible** version, the OHDSIonAWS architecture is deployed in an AWS three-tiered VPC, with Internet access, using network address ranges that you specify.  You can restrict who can access your OHDSI environment over the Internet by providing an allowed public IP address range as a parameter when the environment is deployed.  This version is useful for environments with non-sensitive data, public-facing demonstrations, training environments, or test deployments.
+
+With the **Private Network** version, the OHDSIonAWS architecture is deployed into a pre-existing AWS VPC that you specify during deployment.  This can be a VPC that you designed and deployed or one provided to you from your organization's central IT team.  The VPC you specify can be connected back to your organization's on-premises internal network using a [VPN connection](https://docs.aws.amazon.com/vpc/latest/userguide/vpn-connections.html) or [AWS Direct Connect connection](https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html).  The OHDSI environment is then deployed using only internal, private IP addressing and can only be accessed from within your organization's internal, private network.  This version is useful for production analytics environments containing sensitive data. 
+
+##### General Architecture Description
 
 Starting from the user, public Internet DNS services are (optionally) provided by **Amazon Route 53**.  This gives you the ability to automatically add a domain to an existing hosted zone in Route 53 (i.e. ohdsi.example.edu if example.edu is already hosted in Route 53).  In addition, if you are deploying a new domain to Route 53, an SSL certificate can be automatically generated and applied using **AWS Certificate Manager (ACM)**.  This enables HTTPS communication and ensures the data sent from the users is encrypted in-transit (in accordance with HIPAA).  HTTPS communication is also used between the Application Load Balancers and the Atlas/WebAPI servers.
 
@@ -174,8 +184,11 @@ The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances 
 This parameters section contains a list of the OHDSI components that will be deployed in your environment and allows you to provide the version number as a parameter.  Default versions are provided that work well together, but you can provide your own version numbers if you desire.  The version number here must map to a **tagged release** or **branch** for that component in it's GitHub repository.  For instance, this is the [list of tagged releases for the OHDSI WebAPI project](https://github.com/OHDSI/WebAPI/tags).
 <img src="https://github.com/JamesSWiggins/ohdsi-cfn/blob/master/images/ohdsi_versions.png" width="500">
 
-##### VPC Networking parameters
-As a part of this deployment a new [AWS Virtual Private Cloud (VPC)](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html) is created using private network addressing.  This parameters section allows you to provide your own addresses for this VPC which can be useful if you want to establish a [VPN connection](https://docs.aws.amazon.com/vpc/latest/userguide/vpn-connections.html), [AWS Direct Connect connection](https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html), or [VPC Peering connection](https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html).
+##### VPC Networking parameters (Internet Accessible version)
+As a part of this deployment, a new [AWS Virtual Private Cloud (VPC)](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html) is created using the IP address ranges that you specify.  This VPC provides a public tier that is accessible from the Internet and contains a load balancer.  The application and data tiers, which contain the OHDSI applications and databases respectively, are not accessible directly from the Internet.  
+
+##### VPC Networking parameters (Private Network version)
+As a part of this deployment, you specify and existing VPC and subnets within that VPC to use for each tier of the OHDSIonAWS architecture (presentation, application, and database).  For each tier, you provide two subnets, giving you the ability to spread your deployment over two [AWS Availability Zones within the AWS Region](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html) you chose.  The Presentation Tier in this architecture, as well as the Application and Data tiers, only use private IP addressing, so none of the resources are accessible from the Internet.  This environment is only accessible from your internal, private network.  This private VPC can also be connected back to your internal, on-premises network using a [VPN connection](https://docs.aws.amazon.com/vpc/latest/userguide/vpn-connections.html) or [AWS Direct Connect connection](https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html).
 
 When you've provided appropriate values for the **Parameters**, choose **Next**.
 
