@@ -57,6 +57,7 @@ The features of using this architecture are as follows:
 * It’s deployed in an isolated, three-tier Amazon Virtual Private Cloud (Amazon VPC).
 * Can be deployed with access from the public Internet, or accessible only from within your organization's private network.
 * It deploys the OMOP CDM with clinical and vocabulary data, Atlas, WebAPI, Achilles, and RStudio with PatientLevelPrediction, CohortMethod, and many other R libraries.
+* Provides role-based access control for Atlas and RStudio
 * It uses data-at-rest and in-flight encryption to respect the requirements of HIPAA.
 * It uses managed services from AWS; OS, middleware, and database patching and maintenance is largely automatic.
 * It creates automated backups for operational and disaster recovery.
@@ -163,6 +164,14 @@ To configure your own custom data source, provide the schema names you want to u
 Creating and S3 bucket and uploading the 'Source'.sql files:
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/upload_data_sources.gif "Uploading OMOP data sources.")
 
+##### RStudio parameters
+|Parameter Name| Description|
+|--------------|------------|
+| Instance Type for RStudio | This determines the processing power of your multi-user RStudio instance.  About 0.75GB per concurrent user is recommended.  For more information, see the [list of available EC2 instnance types](https://aws.amazon.com/ec2/instance-types/). |
+| Home Directory size for RStudio instance | The amount of encrypted disk space, in GBs, allocated to store RStudio user's local data. |
+| Comma-delimited user list for RStudio | Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server. The first user in the list will be given sudoers access. |
+| Bucket for PatientLevelPrediction SageMaker Models | Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you. |
+
 ##### Web Tier parameters
 The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances behind a load balancer.  This allows Atlas/WebAPI to be fault tolerant and highly available while also growing and shrinking the number of instances based on load.
 
@@ -171,14 +180,8 @@ The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances 
 | Web Tier Instance Type | This determines the processing power of your Atlas/WebAPI instances.  ```t2.micro``` should be sufficient for small implementations (5 or less concurrent users).  For more information, see the [list of available EC2 instnance types](https://aws.amazon.com/ec2/instance-types/). |
 | Minimum Atlas/WebAPI Instances | **Required** Specifies the minimum number of EC2 instances in the Web Autoscaling Group. A value of >1 will create a highly available environment by placing instances in multiple availability zones. |
 | Minimum Atlas/WebAPI Instances | **Required** Specifies the maximum number of EC2 instances in the Web Autoscaling Group. Must be greater than or equal to the Minimum Atlas/WebAPI Instances. |
+| Enable Authentication For Atlas? | If true, this will use the comma-delimited list of usernames and passwords provided for RStudio to control access to Atlas.  The first user in the list will be an 'admin' |
 
-##### RStudio parameters
-|Parameter Name| Description|
-|--------------|------------|
-| Instance Type for RStudio | This determines the processing power of your multi-user RStudio instance.  About 0.75GB per concurrent user is recommended.  For more information, see the [list of available EC2 instnance types](https://aws.amazon.com/ec2/instance-types/). |
-| Home Directory size for RStudio instance | The amount of encrypted disk space, in GBs, allocated to store RStudio user's local data. |
-| Comma-delimited user list for RStudio | Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server. The first user in the list will be given sudoers access. |
-| Bucket for PatientLevelPrediction SageMaker Models | Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you. |
 
 ##### OHDSI Component Versions parameters
 This parameters section contains a list of the OHDSI components that will be deployed in your environment and allows you to provide the version number as a parameter.  Default versions are provided that work well together, but you can provide your own version numbers if you desire.  The version number here must map to a **tagged release** or **branch** for that component in it's GitHub repository.  For instance, this is the [list of tagged releases for the OHDSI WebAPI project](https://github.com/OHDSI/WebAPI/tags).
