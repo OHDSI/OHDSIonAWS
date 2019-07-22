@@ -154,6 +154,7 @@ These parameters allow you to specify any number of OMOP formatted data sources 
 ###### Included sample data sources
 Ultimately, you will want to provide your own custom data sources, but to get started there are several sample, synthetic data sources available for you to use.  They are listed in the table below.
 <p align="center">
+
 | Sample Data Source | Size | Schema Name |
 | --- | --- | ---
 | [Synthea](https://github.com/synthetichealth/synthea) | 1,000 persons | synthea1k |
@@ -162,6 +163,7 @@ Ultimately, you will want to provide your own custom data sources, but to get st
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 1,000 persons | CMSDESynPUF1k |
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | 100,000 persons | CMSDESynPUF100k |
 | [CMS DeSynPUF](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DE_Syn_PUF.html) | >2,000,000 persons | CMSDESynPUF23m |
+
 </p>
 
 ###### Using your own custom data sources
