@@ -40,18 +40,19 @@ Metadata:
         - Sources
         - SourcesBucket
     - Label:
-        default: Web Tier
-      Parameters:
-        - WebInstanceType
-        - WebAsgMin
-        - WebAsgMax
-    - Label:
         default: RStudio
       Parameters:
         - RStudioInstanceType
         - RStudioHomeDirectorySize
         - RStudioUserList
         - SageMakerBucket
+    - Label:
+        default: Web Tier
+      Parameters:
+        - WebInstanceType
+        - WebAsgMin
+        - WebAsgMax
+        - AtlasSecurity
     - Label:
         default: OHDSI Component Versions
       Parameters:
@@ -123,6 +124,8 @@ Metadata:
         default: Maximum Atlas/WebAPI Instances
       WebInstanceType:
         default: Web Tier Instance Type
+      AtlasSecurity:
+        default: Enable Authentication For Atlas?
 
       RStudioInstanceType:
         default: Instance Type for RStudio
@@ -240,6 +243,7 @@ Parameters:
     Type: String
   DatabaseInstanceType:
     AllowedValues:
+      - db.t3.medium
       - db.r4.large
       - db.r4.xlarge
       - db.r4.2xlarge
@@ -247,7 +251,7 @@ Parameters:
       - db.r4.8xlarge
       - db.r4.16xlarge
     ConstraintDescription: Must be a valid RDS instance class.
-    Default: db.r4.large
+    Default: db.t3.medium
     Description: The Amazon RDS database instance class (determines processing power and memory capacity of the database).
     Type: String
   RedshiftInstanceType:
@@ -331,7 +335,13 @@ Parameters:
     Default: 2
     Description: Specifies the minimum number of EC2 instances in the Web Autoscaling Group.  A value of >1 will create a highly available environment by placing instances in multiple availability zones.
     Type: String
-
+  AtlasSecurity:
+    Type: String
+    Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true
 
   RStudioInstanceType:
     Type: String
@@ -405,71 +415,71 @@ Parameters:
   OMOPv:
     Description: The OHDSI CommonDataModel GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v5.3.1'
+    Default: '5.3.1'
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.1'
+    Default: '2.7.2'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.1'
+    Default: '2.7.2'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.6.3'
+    Default: '1.6.3'
   PatientLevelPredictionv:
     Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v3.0.5'
+    Default: '3.0.5'
   CohortMethodv:
     Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v3.0.2'
+    Default: '3.0.2'
   SqlRenderv:
     Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.6.2'
+    Default: '1.6.2'
   DatabaseConnectorv:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.2.0'
+    Default: '2.2.0'
   DatabaseConnectorJarsv:
     Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.0.0'
+    Default: '1.0.0'
   OhdsiRToolsv:
     Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.7.0'
+    Default: '1.7.0'
   FeatureExtractionv:
     Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.2.4'
+    Default: '2.2.4'
   Cyclopsv:
     Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.0.2'
+    Default: '2.0.2'
   EmpiricalCalibrationv:
     Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.0.0'
+    Default: '2.0.0'
   OhdsiSharingv:
     Description: OHDSI OhdsiSharing GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v0.1.3'
+    Default: '0.1.3'
   MethodEvaluationv:
     Description: OHDSI MethodEvaluation GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.0.2'
+    Default: '1.0.2'
   Hydrav:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v0.0.4'
+    Default: '0.0.4'
   PredictionComparisonv:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.0.0'
+    Default: '1.0.0'
 
   VPCId:
     Type: AWS::EC2::VPC::Id
@@ -664,6 +674,8 @@ Resources:
         RSRoleArn: 
           !GetAtt 'VPCStack.Outputs.RSRoleArn'
         PrivateDeployment: 'true'
+        AtlasSecurity: !Ref AtlasSecurity
+        UserList: !Ref 'RStudioUserList'
       TemplateURL: https://s3.amazonaws.com/ohdsi-rstudio/03-application-ohdsi.yaml
   route53:
     Condition: DeployRoute53
@@ -686,3 +698,5 @@ Outputs:
     Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', !Ref DomainName, '.', !Ref HostedZoneName, '/']], !Join ['', ['http://', !Ref DomainName, '.', !Ref HostedZoneName, '/']]], !Join ['', ['http://', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.elasticbeanstalk.com']]]
   RStudioURL:
     Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, '/']], !Join ['', ['http://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, '/']]], !Join ['', ['http://', 'rstudio.', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.elasticbeanstalk.com']]]
+  DeploymentLog:
+    Value: !Join ['', ['https://console.aws.amazon.com/cloudwatch/home?region=', !Ref 'AWS::Region', '#logEventViewer:group=ohdsi-temporary-ec2-instance-build-log;stream=', !Ref EBEndpoint, '-build-log']]

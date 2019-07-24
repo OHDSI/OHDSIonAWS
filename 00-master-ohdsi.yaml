@@ -40,18 +40,19 @@ Metadata:
         - Sources
         - SourcesBucket
     - Label:
-        default: Web Tier
-      Parameters:
-        - WebInstanceType
-        - WebAsgMin
-        - WebAsgMax
-    - Label:
         default: RStudio
       Parameters:
         - RStudioInstanceType
         - RStudioHomeDirectorySize
         - RStudioUserList
         - SageMakerBucket
+    - Label:
+        default: Web Tier
+      Parameters:
+        - WebInstanceType
+        - WebAsgMin
+        - WebAsgMax
+        - AtlasSecurity
     - Label:
         default: OHDSI Component Versions
       Parameters:
@@ -70,6 +71,8 @@ Metadata:
         - EmpiricalCalibrationv
         - OhdsiSharingv
         - MethodEvaluationv
+        - Hydrav
+        - PredictionComparisonv
     - Label:
         default: VPC Networking (changing this is optional)
       Parameters:
@@ -121,6 +124,8 @@ Metadata:
         default: Maximum Atlas/WebAPI Instances
       WebInstanceType:
         default: Web Tier Instance Type
+      AtlasSecurity:
+        default: Enable Authentication For Atlas?
 
       RStudioInstanceType:
         default: Instance Type for RStudio
@@ -161,6 +166,11 @@ Metadata:
         default:  OhdsiSharing Version
       MethodEvaluationv:
         default: MethodEvaluation Version
+      Hydrav:
+        default: Hydra Version
+      PredictionComparisonv:
+        default: PredictionComparison Version
+      
 
       VPCcidr:
         default: VPC CIDR Range
@@ -233,6 +243,7 @@ Parameters:
     Type: String
   DatabaseInstanceType:
     AllowedValues:
+      - db.t3.medium
       - db.r4.large
       - db.r4.xlarge
       - db.r4.2xlarge
@@ -240,7 +251,7 @@ Parameters:
       - db.r4.8xlarge
       - db.r4.16xlarge
     ConstraintDescription: Must be a valid RDS instance class.
-    Default: db.r4.large
+    Default: db.t3.medium
     Description: The Amazon RDS database instance class (determines processing power and memory capacity of the database).
     Type: String
   RedshiftInstanceType:
@@ -260,9 +271,9 @@ Parameters:
     Description: "[ Required ] Specifies the  number of nodes in your Redshift cluster."
     Type: String
   DatabaseMasterPassword:
-    AllowedPattern: ^([a-zA-Z0-9~#%^*_+,-])*$
-    ConstraintDescription: Must have a length of 8-41 and be letters (upper or lower), numbers, and/or these special characters ~#%^*_+,-
-    Description: '[ Required ] This password will be used for the master user of the Aurora PostgreSQL WebAPI database and the Redshift OMOP CDM data warehouse.  It must have a length of 8-41 and be letters (upper or lower), numbers, and/or these special characters ~#%^*_+,-.'
+    AllowedPattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.{8,41}$)[a-zA-Z\d~#%^*_+,-]*$
+    ConstraintDescription: Must have a length of 8-41 and be letters (upper and lower), numbers, and/or these special characters ~#%^*_+,-
+    Description: '[ Required ] This password will be used for the master user of the Aurora PostgreSQL WebAPI database and the Redshift OMOP CDM data warehouse.  It must have a length of 8-41 and have at least 1 uppercase, 1 lowercase, 1 number, and optionally include these special characters ~#%^*_+,-.'
     MaxLength: 41
     MinLength: 8
     NoEcho: true
@@ -324,7 +335,13 @@ Parameters:
     Default: 2
     Description: Specifies the minimum number of EC2 instances in the Web Autoscaling Group.  A value of >1 will create a highly available environment by placing instances in multiple availability zones.
     Type: String
-
+  AtlasSecurity:
+    Type: String
+    Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true
 
   RStudioInstanceType:
     Type: String
@@ -386,7 +403,7 @@ Parameters:
   RStudioHomeDirectorySize:
     Description: '[ Required ] The amount of encrypted disk space, in GBs, allocated to store RStudio users local data.'
     Type: Number
-    Default: 20
+    Default: 50
   RStudioUserList:
     Description: '[ Required ] Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server.  The first user in the list will be given sudoers access.'
     Type: 'String'
@@ -398,63 +415,71 @@ Parameters:
   OMOPv:
     Description: The OHDSI CommonDataModel GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v5.3.1'
+    Default: '5.3.1'
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.1'
+    Default: '2.7.2'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.7.1'
+    Default: '2.7.2'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.6.0'
+    Default: '1.6.3'
   PatientLevelPredictionv:
     Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v3.0.2'
+    Default: '3.0.5'
   CohortMethodv:
     Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v3.0.2'
+    Default: '3.0.2'
   SqlRenderv:
     Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.5.2'
+    Default: '1.6.2'
   DatabaseConnectorv:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.2.0'
+    Default: '2.2.0'
   DatabaseConnectorJarsv:
-    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.0.0'
+    Default: '1.0.0'
   OhdsiRToolsv:
     Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.5.5'
+    Default: '1.7.0'
   FeatureExtractionv:
     Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.1.5'
+    Default: '2.2.4'
   Cyclopsv:
     Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v2.0.0'
+    Default: '2.0.2'
   EmpiricalCalibrationv:
     Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.3.6'
+    Default: '2.0.0'
   OhdsiSharingv:
-    Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
+    Description: OHDSI OhdsiSharing GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v0.1.3'
+    Default: '0.1.3'
   MethodEvaluationv:
-    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Description: OHDSI MethodEvaluation GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: 'v1.0.1'
+    Default: '1.0.2'
+  Hydrav:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.0.4'
+  PredictionComparisonv:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
 
   VPCcidr:
     Description: (optional to change) CIDR IP Range for your VPC.
@@ -570,6 +595,7 @@ Resources:
         HomeDirectorySize: !Ref 'RStudioHomeDirectorySize'
         UserList: !Ref 'RStudioUserList'
         KeyPair: !Ref EC2KeyName
+        Hydrav: !Ref 'Hydrav'
         PatientLevelPredictionv: !Ref 'PatientLevelPredictionv'
         CohortMethodv: !Ref 'CohortMethodv'
         SqlRenderv: !Ref 'SqlRenderv'
@@ -582,6 +608,7 @@ Resources:
         OhdsiSharingv: !Ref 'OhdsiSharingv'
         MethodEvaluationv: !Ref 'MethodEvaluationv'
         Achillesv: !Ref 'Achillesv'
+        PredictionComparisonv: !Ref 'PredictionComparisonv'
         RDSEndpoint: !GetAtt 'DatabasesStack.Outputs.RDSEndpoint'
         RedshiftEndpoint: !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
         Sources: !Ref Sources
@@ -664,6 +691,9 @@ Resources:
           !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
         RSRoleArn: 
           !GetAtt 'VPCStack.Outputs.RSRoleArn'
+        PrivateDeployment: 'false'
+        AtlasSecurity: !Ref AtlasSecurity
+        UserList: !Ref 'RStudioUserList'
       TemplateURL: https://s3.amazonaws.com/ohdsi-rstudio/03-application-ohdsi.yaml
   route53:
     Condition: DeployRoute53
@@ -686,3 +716,5 @@ Outputs:
     Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', !Ref DomainName, '.', !Ref HostedZoneName, '/']], !Join ['', ['http://', !Ref DomainName, '.', !Ref HostedZoneName, '/']]], !Join ['', ['http://', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.elasticbeanstalk.com']]]
   RStudioURL:
     Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, '/']], !Join ['', ['http://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, '/']]], !Join ['', ['http://', 'rstudio.', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.elasticbeanstalk.com']]]
+  DeploymentLog:
+    Value: !Join ['', ['https://console.aws.amazon.com/cloudwatch/home?region=', !Ref 'AWS::Region', '#logEventViewer:group=ohdsi-temporary-ec2-instance-build-log;stream=', !Ref EBEndpoint, '-build-log']]

@@ -146,17 +146,6 @@ Parameters:
       - "true"
       - "false"
     Default: false
-  AtlasSecurity:
-    Type: String
-    Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
-    AllowedValues:
-      - "true"
-      - "false"
-    Default: false
-  UserList:
-    Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
-    Type: 'String'
-    NoEcho: true
 
   VPCId:
     Type: AWS::EC2::VPC::Id
@@ -582,7 +571,7 @@ Resources:
                     state_file = /var/lib/awslogs/agent-state        
                     
                     [ohdsi-build-log]
-                    file = /var/log/cloud-init-output.log
+                    file = /tmp/log.txt
                     log_group_name = ohdsi-temporary-ec2-instance-build-log
                     log_stream_name = ${EB}-build-log
                   - { EB: !Ref EBEndpoint }
@@ -619,8 +608,6 @@ Resources:
                   echo "OHDSIADMINUSERPWHASH=" $OHDSIADMINUSERPWHASH
                   echo "OHDSIAPPUSERPWHASH=" $OHDSIAPPUSERPWHASH
                   export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
-                  
-                  aws s3 mb s3://$BUCKET_NAME
 
                   sudo yum install -y nodejs npm --enablerepo=epel
                   sudo yum install -y postgresql
@@ -628,7 +615,6 @@ Resources:
                   export PGPASSWORD=$DATABASE_PASSWORD
                   sed -i 's!OHDSIADMINUSERPWHASH!'$OHDSIADMINUSERPWHASH'!' postgres_init_master.sql
                   sed -i 's!OHDSIAPPUSERPWHASH!'$OHDSIAPPUSERPWHASH'!' postgres_init_master.sql
-                  sed -i 's!OHDSISECURITYPWHASH!'$OHDSISECURITYPWHASH'!' postgres_init_master.sql
                   psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U master -a -f postgres_init_master.sql 
                   psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U ohdsi_admin_user -a -f postgres_init_ohdsi.sql
 
@@ -643,45 +629,14 @@ Resources:
                   sudo yum install -y java-1.8.0
                   sudo yum install -y java-1.8.0-openjdk-devel
                   export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
-                  
-                  #If specified, enable WebAPI security and create users
-                  if [ "$ATLASSECURITY" = "true" ]; then
-                    sudo yum install -y httpd24-tools
-
-                    mv settings_security.xml ./WebAPI/settings.xml
-                    psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_security_user -a -f setup_security.sql
-                  
-                    count=1
-                    for i in $(echo $ATLASUSERS | sed "s/,/ /g")
-                    do
-                      if [ `expr $count % 2` -eq "1" ]; then
-                        username=$i
-                        let count+=1
-                        continue
-                      else
-                        atlaspw=`htpasswd -bnBC 4 "" $i | tr -d ':\n' | sed 's/$2y/$2a/'`
-                        psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_security_user -a -c "insert into authentication.security (email,password) values ('$username', E'$atlaspw');"
-                        let count+=1
-                      fi
-                    done
-
-                  else
-                    mv settings.xml ./WebAPI/
-                  fi
-                  
+                  mv settings.xml ./WebAPI/
                   cd WebAPI
                   mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
                   cd ..
                   cp ./WebAPI/target/WebAPI.war .
 
                   #Build Atlas "war" file to put at the root URL of the Tomcat server
-                  #If specified, enable Atlas security
-                  if [ "$ATLASSECURITY" = "true" ]; then
-                    mv config-local-secure.js ./Atlas/js/config-local.js
-                  else
-                    mv config-local.js ./Atlas/js/
-                  fi
-                  
+                  mv config-local.js ./Atlas/js/
                   cd Atlas
                   npm config set strict-ssl false
                   npm run build
@@ -718,7 +673,7 @@ Resources:
                     echo "SOURCES=" $SOURCES
                     echo "SOURCESBUCKET= " $SOURCESBUCKET
                     export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
-                    
+
                     #Install R and the dependencies for Achilles
                     sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
                     sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
@@ -761,20 +716,9 @@ Resources:
                     # fix java binding - R and packages have to be compiled with the same java version as hadoop
                     sudo R CMD javareconf
                     
-                    #Grab R binaries   
-                    cd /usr/lib64/R/library
-                    wget https://ohdsi-sample-data.s3.amazonaws.com/rdependencies.tar.gz
-                    tar zxvf rdependencies.tar.gz
-                    cd /tmp
-
-                    #Install R dependencies if any of the specified versions differ
-                    sudo Rscript /tmp/rdependencies.r
-
-                    #Wait for the WebAPI app to be deployed by Elastic Beanstalk and populate the tables in RDS Postrgres
-                    while [ `curl -I ${Protocol}${RCDomainName}.${HostedZone} 2>/dev/null | head -n 1 | cut -d$' ' -f2` -ne 200 ]
-                    do
-                        sleep 5
-                    done
+                    sudo R --no-save << R_SCRIPT
+                    install.packages(c('curl','reticulate', 'RJSONIO', 'httr', 'devtools', 'itertools', 'digest', 'Rcpp', 'functional', 'plyr', 'stringr', 'reshape2', 'caTools', 'rJava', 'devtools', 'DBI', 'ggplot2', 'dplyr', 'R.methodsS3', 'Hmisc', 'memoise', 'rjson', 'xml2', 'rvg', 'gdtools', 'png'), repos="http://cran.rstudio.com")
+                    R_SCRIPT
 
                     #Connect R-Studio Instance to the load balancer
                     if [ "$RSTUDIO_TARGET_GROUP_ARN" != "none" ]; then
@@ -785,38 +729,12 @@ Resources:
                         aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
                     fi
 
-
-                    #If using Atlas security, give users permissions in Atlas
-                    export PGPASSWORD=$DATABASE_PASSWORD
-                    if [ "$ATLASSECURITY" = "true" ]; then
-                      count=1
-                      for i in $(echo $ATLASUSERS | sed "s/,/ /g")
-                      do
-                        if [ `expr $count % 2` -eq "1" ]; then
-                          username=$i
-                          let count+=1
-                          continue
-                        else
-                          curl -d "login=$username&password=$i" -X POST ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db
-                          userid=`psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "select id from webapi.sec_user where login = '$username';"`
-                          echo $userid >> /tmp/userids.txt
-                          if [ "$count" = "2" ]; then
-                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,2);"
-                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
-                          else
-                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
-                          fi
-                          let count+=1
-                        fi
-                      done
-                    fi
-
-
                     cd /tmp
                     #Deploy the OMOP CDM Schema to Redshift
+                    export PGPASSWORD=$DATABASE_PASSWORD
                     export REDSHIFTDDL=`ls ./CommonDataModel/Redshift/OMOP*`
                     #Some of the current Vocabulary data sets from Athena do not have values for these columns
-                    if [ "$CDM_VERSION" = "5.3.1" ]; then
+                    if [ "$CDM_VERSION" = "v5.3.1" ]; then
                         sed -i '47s/.*/  concept_name  VARCHAR(255) NULL ,/' "$REDSHIFTDDL"
                         sed -i '52s/.*/  concept_code  VARCHAR(50) NULL ,/' "$REDSHIFTDDL"
                         sed -i '62s/.*/  vocabulary_reference VARCHAR(255) NULL,/' "$REDSHIFTDDL"
@@ -858,6 +776,12 @@ Resources:
                           sed -i 's!RS_ROLE_ARN!'$RS_ROLE_ARN'!' $i.sql
                     
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f $i.sql
+                        
+                          #Wait for the WebAPI app to be deployed by Elastic Beanstalk and populate the tables in RDS Postrgres
+                          while [ `curl ${Protocol}${RCDomainName}.${HostedZone} 1> /dev/null 2> /dev/null; echo $?` -ne 0 ]
+                          do
+                              sleep 5
+                          done
 
                           #Get the Results Schema from WebAPI and apply the Results schema
                           wget -q "${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results" -O results_schema.sql
@@ -901,14 +825,8 @@ Resources:
                           sed -i 's!CDM_PLACEHOLDER!'$i'!' /tmp/achilles-$i.r
                           sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' /tmp/achilles-$i.r  
                           Rscript /tmp/achilles-$i.r
-                          
-                          if [ "$ATLASSECURITY" = "true" ]; then
-                            sourceroleid=`psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "select id from webapi.sec_role where name LIKE '%$i%';"`
-                            while read userid; do
-                              psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,$sourceroleid);"
-                            done </tmp/userids.txt
-                          fi
                           aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
+
                     done
 
 
@@ -927,30 +845,21 @@ Resources:
                   CREATE ROLE ohdsi_app
                   VALID UNTIL 'infinity';
                   COMMENT ON ROLE ohdsi_app
-                  IS 'Application group for OHDSI applications';
-
-                  CREATE ROLE ohdsi_security
-                  VALID UNTIL 'infinity';
-                  COMMENT ON ROLE ohdsi_security
-                  IS 'Security authentication group for OHDSI applications';
+                  IS 'Application groupfor OHDSI applications';
 
                   CREATE ROLE ohdsi_admin_user LOGIN ENCRYPTED PASSWORD 'OHDSIADMINUSERPWHASH'
                   VALID UNTIL 'infinity';
+                  -- password is admin1
                   GRANT ohdsi_admin TO ohdsi_admin_user;
                   COMMENT ON ROLE ohdsi_admin_user
                   IS 'Admin user account for OHDSI applications';
 
                   CREATE ROLE ohdsi_app_user LOGIN ENCRYPTED PASSWORD 'OHDSIAPPUSERPWHASH'
                   VALID UNTIL 'infinity';
+                  -- password is app1
                   GRANT ohdsi_app TO ohdsi_app_user;
                   COMMENT ON ROLE ohdsi_app_user
                   IS 'Application user account for OHDSI applications';
-
-                  CREATE ROLE ohdsi_security_user LOGIN ENCRYPTED PASSWORD 'OHDSISECURITYPWHASH'
-                  VALID UNTIL 'infinity';
-                  GRANT ohdsi_security TO ohdsi_security_user;
-                  COMMENT ON ROLE ohdsi_security_user
-                  IS 'Security Authentication user for Atlas and WebAPI';
 
                   ALTER USER ohdsi_admin_user CREATEDB;
                 mode: 000664
@@ -966,7 +875,6 @@ Resources:
                   IS 'OHDSI database';
                   GRANT ALL ON DATABASE "OHDSI" TO GROUP ohdsi_admin;
                   GRANT CONNECT, TEMPORARY ON DATABASE "OHDSI" TO GROUP ohdsi_app;
-                  GRANT CONNECT, TEMPORARY ON DATABASE "OHDSI" TO GROUP ohdsi_security;
 
                   \c OHDSI
 
@@ -977,10 +885,6 @@ Resources:
                   GRANT USAGE ON SCHEMA webapi TO public;
                   GRANT ALL ON SCHEMA webapi TO GROUP ohdsi_admin;
                   GRANT USAGE ON SCHEMA webapi TO GROUP ohdsi_app;
-                  
-                  CREATE SCHEMA authentication
-                      AUTHORIZATION ohdsi_admin;
-                  GRANT ALL ON SCHEMA authentication TO GROUP ohdsi_security;
 
                   ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
                     GRANT INSERT, SELECT, UPDATE, DELETE, REFERENCES, TRIGGER ON TABLES
@@ -994,26 +898,6 @@ Resources:
                   ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
                     GRANT USAGE ON TYPES
                     TO ohdsi_app;
-                  ALTER DEFAULT PRIVILEGES IN SCHEMA authentication
-                    GRANT INSERT, SELECT, UPDATE, DELETE, REFERENCES, TRIGGER ON TABLES
-                    TO ohdsi_security;
-                mode: 000664
-                owner: root
-                group: root
-              /tmp/setup_security.sql:
-                content: |
-                  CREATE TABLE authentication.security
-                  (
-                      email character varying(255) COLLATE pg_catalog."default",
-                      password character varying(255) COLLATE pg_catalog."default"
-                  )
-                  WITH (
-                      OIDS = FALSE
-                  )
-                  TABLESPACE pg_default;
-
-                  ALTER TABLE authentication.security
-                      OWNER to ohdsi_security;
                 mode: 000664
                 owner: root
                 group: root
@@ -1061,42 +945,6 @@ Resources:
                 mode: 000664
                 owner: root
                 group: root
-              /tmp/settings_security.xml:
-                content: !Sub |
-                  <settings>
-                  <profiles>
-                    <profile>
-                      <id>webapi-postgresql</id>
-                      <properties>
-                        <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
-                        <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
-                        <datasource.username>ohdsi_app_user</datasource.username>
-                        <datasource.password>${DatabaseMasterPassword}</datasource.password>
-                        <datasource.dialect>postgresql</datasource.dialect>
-                        <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
-                        <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
-                        <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
-                        <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
-                        <flyway.datasource.password>${DatabaseMasterPassword}</flyway.datasource.password>
-                        <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
-                        <security.provider>AtlasRegularSecurity</security.provider>
-                        <security.origin>*</security.origin>
-                        <security.maxLoginAttempts>3</security.maxLoginAttempts>
-                        <security.duration.initial>10</security.duration.initial>
-                        <security.duration.increment>10</security.duration.increment>
-                        <security.db.datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</security.db.datasource.url>
-                        <security.db.datasource.driverClassName>org.postgresql.Driver</security.db.datasource.driverClassName>
-                        <security.db.datasource.schema>authentication</security.db.datasource.schema>
-                        <security.db.datasource.username>ohdsi_security_user</security.db.datasource.username>
-                        <security.db.datasource.password>${DatabaseMasterPassword}</security.db.datasource.password>
-                        <security.db.datasource.authenticationQuery>select password from ${!security.db.datasource.schema}.security where email = ?</security.db.datasource.authenticationQuery>
-                      </properties> 
-                    </profile>  
-                  </profiles>
-                  </settings>              
-                mode: 000664
-                owner: root
-                group: root
               /tmp/config-local.js:
                 content: !Sub 
                   - |
@@ -1113,204 +961,16 @@ Resources:
                   - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'elasticbeanstalk.com']]] }               
                 mode: 000664
                 owner: root
-                group: root
-              /tmp/config-local-secure.js:
-                content: !Sub 
-                  - |
-                    define([], function () {
-                      var configLocal = {};
-
-                      configLocal.userAuthenticationEnabled = true;
-
-                      configLocal.api = {
-                        name: 'My Organization Name',
-                        url: '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/'
-                      };
-
-                      configLocal.authProviders = [{
-                        "name": "Local Security Test DB",
-                        "url": "user/login/db",
-                        "ajax": true,
-                        "icon": "fa fa-database",
-                        "isUseCredentialsForm": true
-                      }];                    
-
-                      return configLocal;
-                    });                    
-                  - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'elasticbeanstalk.com']]] }               
-                mode: 000664
-                owner: root
                 group: root 
-              /tmp/rdependencies.r:
-                content: !Sub |
-                  print("Testing to see if R dependency libraries are installed...")
-                  if("callr" %in% rownames(installed.packages()) == FALSE){install.packages("callr", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("cli" %in% rownames(installed.packages()) == FALSE){install.packages("cli", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("digest" %in% rownames(installed.packages()) == FALSE){install.packages("digest", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("git2r" %in% rownames(installed.packages()) == FALSE){install.packages("git2r", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("httr" %in% rownames(installed.packages()) == FALSE){install.packages("httr", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("jsonlite" %in% rownames(installed.packages()) == FALSE){install.packages("jsonlite", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("memoise" %in% rownames(installed.packages()) == FALSE){install.packages("memoise", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("pkgbuild" %in% rownames(installed.packages()) == FALSE){install.packages("pkgbuild", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("pkgload" %in% rownames(installed.packages()) == FALSE){install.packages("pkgload", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("rcmdcheck" %in% rownames(installed.packages()) == FALSE){install.packages("rcmdcheck", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("remotes" %in% rownames(installed.packages()) == FALSE){install.packages("remotes", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("rstudioapi" %in% rownames(installed.packages()) == FALSE){install.packages("rstudioapi", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("sessioninfo" %in% rownames(installed.packages()) == FALSE){install.packages("sessioninfo", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("usethis" %in% rownames(installed.packages()) == FALSE){install.packages("usethis", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("withr" %in% rownames(installed.packages()) == FALSE){install.packages("withr", repos = "http://cran.us.r-project.org", upgrade = "never")}
-
-                  if(packageVersion("devtools") != "2.0.2"){install.packages("https://cran.r-project.org/src/contrib/Archive/devtools/devtools_2.0.2.tar.gz", repos=NULL, type="source")}
-
-                  if(packageVersion("acepack") != "1.4.1"){devtools::install_version("acepack", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("askpass") != "1.1"){devtools::install_version("askpass", version = "1.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("assertthat") != "0.2.1"){devtools::install_version("assertthat", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("AUC") != "0.3.0"){devtools::install_version("AUC", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.ec2metadata") != "0.1.6"){devtools::install_version("aws.ec2metadata", version = "0.1.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.s3") != "0.3.20"){devtools::install_version("aws.s3", version = "0.3.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.signature") != "0.5.0"){devtools::install_version("aws.signature", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("backports") != "1.1.4"){devtools::install_version("backports", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("base64enc") != "0.1-3"){devtools::install_version("base64enc", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("BH") != "1.69.0-1"){devtools::install_version("BH", version = "1.69.0-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("bit") != "1.1-14"){devtools::install_version("bit", version = "1.1-14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("bitops") != "1.0-6"){devtools::install_version("bitops", version = "1.0-6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("caTools") != "1.17.1.2"){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("checkmate") != "1.9.3"){devtools::install_version("checkmate", version = "1.9.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("clipr") != "0.6.0"){devtools::install_version("clipr", version = "0.6.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("clisymbols") != "1.2.0"){devtools::install_version("clisymbols", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("colorspace") != "1.4-1"){devtools::install_version("colorspace", version = "1.4-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("config") != "0.3"){devtools::install_version("config", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("crayon") != "1.3.4"){devtools::install_version("crayon", version = "1.3.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("crosstalk") != "1.0.0"){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("curl") != "3.3"){devtools::install_version("curl", version = "3.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("data.table") != "1.12.2"){devtools::install_version("data.table", version = "1.12.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("DBI") != "1.0.0"){devtools::install_version("DBI", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("desc") != "1.2.0"){devtools::install_version("desc", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("devtools") != "2.0.2"){devtools::install_version("devtools", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("diagram") != "1.6.4"){devtools::install_version("diagram", version = "1.6.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("doParallel") != "1.0.14"){devtools::install_version("doParallel", version = "1.0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("dplyr") != "0.8.1"){devtools::install_version("dplyr", version = "0.8.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("DT") != "0.7"){devtools::install_version("DT", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("evaluate") != "0.14"){devtools::install_version("evaluate", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fansi") != "0.4.0"){devtools::install_version("fansi", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fastmatch") != "1.1-0"){devtools::install_version("fastmatch", version = "1.1-0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ff") != "2.2-14"){devtools::install_version("ff", version = "2.2-14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ffbase") != "0.12.7"){devtools::install_version("ffbase", version = "0.12.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("foreach") != "1.4.4"){devtools::install_version("foreach", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("formatR") != "1.7"){devtools::install_version("formatR", version = "1.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Formula") != "1.2-3"){devtools::install_version("Formula", version = "1.2-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fs") != "1.3.1"){devtools::install_version("fs", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("functional") != "0.6"){devtools::install_version("functional", version = "0.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gdtools") != "0.1.9"){devtools::install_version("gdtools", version = "0.1.9", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("generics") != "0.0.2"){devtools::install_version("generics", version = "0.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ggplot2") != "3.2.0"){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gh") != "1.0.1"){devtools::install_version("gh", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("glue") != "1.3.1"){devtools::install_version("glue", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gridExtra") != "2.3"){devtools::install_version("gridExtra", version = "2.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gtable") != "0.3.0"){devtools::install_version("gtable", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("hexbin") != "1.27.3"){devtools::install_version("hexbin", version = "1.27.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("highr") != "0.8"){devtools::install_version("highr", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Hmisc") != "4.2-0"){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmlTable") != "1.13.1"){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmltools") != "0.3.6"){devtools::install_version("htmltools", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmlwidgets") != "1.3"){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("httpuv") != "1.5.0"){devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ini") != "0.3.1"){devtools::install_version("ini", version = "0.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("iterators") != "1.0.10"){devtools::install_version("iterators", version = "1.0.10", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("itertools") != "0.1-3"){devtools::install_version("itertools", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("keras") != "2.2.4.1"){devtools::install_version("keras", version = "2.2.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("knitr") != "1.23"){devtools::install_version("knitr", version = "1.23", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("labeling") != "0.3"){devtools::install_version("labeling", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("later") != "0.8.0"){devtools::install_version("later", version = "0.8.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("latticeExtra") != "0.6-28"){devtools::install_version("latticeExtra", version = "0.6-28", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("lazyeval") != "0.2.2"){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("magrittr") != "1.5"){devtools::install_version("magrittr", version = "1.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("mailR") != "0.4.1"){devtools::install_version("mailR", version = "0.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("markdown") != "1"){devtools::install_version("markdown", version = "1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("mime") != "0.7"){devtools::install_version("mime", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("munsell") != "0.5.0"){devtools::install_version("munsell", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("officer") != "0.3.5"){devtools::install_version("officer", version = "0.3.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("openssl") != "1.4"){devtools::install_version("openssl", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("openxlsx") != "4.1.0.1"){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pack") != "0.1-1"){devtools::install_version("pack", version = "0.1-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ParallelLogger") != "1.1.0"){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pillar") != "1.4.1"){devtools::install_version("pillar", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pkgconfig") != "2.0.2"){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plogr") != "0.2.0"){devtools::install_version("plogr", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plotly") != "4.9.0"){devtools::install_version("plotly", version = "4.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plyr") != "1.8.4"){devtools::install_version("plyr", version = "1.8.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("png") != "0.1-7"){devtools::install_version("png", version = "0.1-7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("prettyunits") != "1.0.2"){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pROC") != "1.15.0"){devtools::install_version("pROC", version = "1.15.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("processx") != "3.3.1"){devtools::install_version("processx", version = "3.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("promises") != "1.0.1"){devtools::install_version("promises", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("PRROC") != "1.3.1"){devtools::install_version("PRROC", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ps") != "1.3.0"){devtools::install_version("ps", version = "1.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("purrr") != "0.3.2"){devtools::install_version("purrr", version = "0.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("PythonInR") != "0.1-4"){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.methodsS3") != "1.7.1"){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.oo") != "1.22.0"){devtools::install_version("R.oo", version = "1.22.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.utils") != "2.9.0"){devtools::install_version("R.utils", version = "2.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R6") != "2.4.0"){devtools::install_version("R6", version = "2.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RColorBrewer") != "1.1-2"){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Rcpp") != "1.0.1"){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RcppEigen") != "0.3.3.5.0"){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RCurl") != "1.95-4.12"){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ReporteRs") != "0.8.10"){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ReporteRsjars") != "0.0.4"){devtools::install_version("ReporteRsjars", version = "0.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("reshape2") != "1.4.3"){devtools::install_version("reshape2", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("reticulate") != "1.12"){devtools::install_version("reticulate", version = "1.12", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rJava") != "0.9-11"){devtools::install_version("rJava", version = "0.9-11", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rjson") != "0.2.20"){devtools::install_version("rjson", version = "0.2.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RJSONIO") != "1.3-1.2"){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rlang") != "0.4.0"){devtools::install_version("rlang", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rmarkdown") != "1.13"){devtools::install_version("rmarkdown", version = "1.13", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rprojroot") != "1.3-2"){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rvg") != "0.2.1"){devtools::install_version("rvg", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("scales") != "1.0.0"){devtools::install_version("scales", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shape") != "1.4.4"){devtools::install_version("shape", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shiny") != "1.3.2"){devtools::install_version("shiny", version = "1.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shinycssloaders") != "0.2.0"){devtools::install_version("shinycssloaders", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shinydashboard") != "0.7.1"){devtools::install_version("shinydashboard", version = "0.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("slam") != "0.1-45"){devtools::install_version("slam", version = "0.1-45", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("snow") != "0.4-3"){devtools::install_version("snow", version = "0.4-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("sourcetools") != "0.1.7"){devtools::install_version("sourcetools", version = "0.1.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("stringi") != "1.4.3"){devtools::install_version("stringi", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("stringr") != "1.4.0"){devtools::install_version("stringr", version = "1.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("survAUC") != "1.0-5"){devtools::install_version("survAUC", version = "1.0-5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("sys") != "3.2"){devtools::install_version("sys", version = "3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tensorflow") != "1.13.1"){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tfruns") != "1.4"){devtools::install_version("tfruns", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tibble") != "2.1.3"){devtools::install_version("tibble", version = "2.1.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tidyr") != "0.8.3"){devtools::install_version("tidyr", version = "0.8.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tidyselect") != "0.2.5"){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tinytex") != "0.14"){devtools::install_version("tinytex", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("triebeard") != "0.3.0"){devtools::install_version("triebeard", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("urltools") != "1.7.3"){devtools::install_version("urltools", version = "1.7.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("utf8") != "1.1.4"){devtools::install_version("utf8", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("uuid") != "0.1-2"){devtools::install_version("uuid", version = "0.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("vctrs") != "0.1.0"){devtools::install_version("vctrs", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("viridis") != "0.5.1"){devtools::install_version("viridis", version = "0.5.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("viridisLite") != "0.3.0"){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("whisker") != "0.3-2"){devtools::install_version("whisker", version = "0.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xfun") != "0.8"){devtools::install_version("xfun", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xgboost") != "0.6.4.1"){devtools::install_version("xgboost", version = "0.6.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("XML") != "3.98-1.20"){devtools::install_version("XML", version = "3.98-1.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xml2") != "1.2.0"){devtools::install_version("xml2", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xopen") != "1.0.0"){devtools::install_version("xopen", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xtable") != "1.8-4"){devtools::install_version("xtable", version = "1.8-4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("yaml") != "2.2.0"){devtools::install_version("yaml", version = "2.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("zeallot") != "0.1.0"){devtools::install_version("zeallot", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                mode: 000664
-                owner: root
-                group: root  
               /tmp/achilles.r:
                 content: !Sub |
-                  if(packageVersion("SqlRender") != "${SqlRenderv}"){devtools::install_github("ohdsi/SqlRender", ref = "v${SqlRenderv}", upgrade = "never")}
-                  if(packageVersion("DatabaseConnector") != "${DatabaseConnectorv}"){devtools::install_github("ohdsi/DatabaseConnector", ref = "v${DatabaseConnectorv}", upgrade = "never")}
-                  if(packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}"){devtools::install_github("ohdsi/DatabaseConnectorJars", ref = "v${DatabaseConnectorJarsv}", upgrade = "never")}
-                  if(packageVersion("OhdsiRTools") != "${OhdsiRToolsv}"){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")}
-                  if(packageVersion("Achilles") != "${Achillesv}"){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")}
+                  install.packages("devtools",repos = "http://cran.us.r-project.org")
+                  library(devtools)
+                  devtools::install_github("ohdsi/SqlRender", ref = "${SqlRenderv}")
+                  devtools::install_github("ohdsi/DatabaseConnector", ref = "${DatabaseConnectorv}")
+                  devtools::install_github("ohdsi/DatabaseConnectorJars", ref = "${DatabaseConnectorJarsv}")
+                  devtools::install_github("ohdsi/OhdsiRTools", ref = "${OhdsiRToolsv}")
+                  devtools::install_github("ohdsi/Achilles", ref = "${Achillesv}")
                   library(Achilles)
                   connectionDetails <- createConnectionDetails(dbms="redshift", server="REDSHIFT_ENDPOINT/mycdm", user="master",
                                           password='DATABASE_PASSWORD', schema="CDM_PLACEHOLDER", port="5439")
@@ -1472,7 +1132,7 @@ Resources:
                 group: root
     Properties:
       InstanceInitiatedShutdownBehavior: 'terminate'
-      InstanceType: 'm5.xlarge'
+      InstanceType: 't2.medium'
       KeyName: !Ref 'EC2KeyName'
       ImageId: !FindInMap
         - RegionMap
@@ -1503,15 +1163,9 @@ Resources:
             export SOURCESBUCKET=${SourcesBucket}
             export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
             export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            export OHDSISECURITYPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_security_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            export ATLASSECURITY=${AtlasSecurity}
-            export ATLASUSERS=${UserList}  
-
+  
             yum update -y aws-cli 
             yum install -y awslogs git
-
-            aws configure set metadata_service_timeout 10
-            aws configure set metadata_service_num_attempts 5
 
             # Install SSM client
             yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
@@ -1520,17 +1174,16 @@ Resources:
             #Use cfn-init to grab and apply the files specified in the above UserData
             /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
             cd /tmp
-            git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
-            git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
-            git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
+            git clone -b ${Atlasv} https://github.com/OHDSI/Atlas
+            git clone -b ${WebAPIv} https://github.com/OHDSI/WebAPI
+            git clone -b ${OMOPv} https://github.com/OHDSI/CommonDataModel
             sudo service awslogs start
-            #sudo -E bash ./config_ohdsi.sh &>> log.txt
-            sudo -E bash ./config_ohdsi.sh
+            aws s3 mb s3://${EBBucket}
+            sudo -E bash ./config_ohdsi.sh &>> log.txt
             export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks | grep "Tomcat 8" | head -1 | cut -d \" -f2`
             /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
-            #sudo -E bash ./config_db.sh &>> log.txt
-            sudo -E bash ./config_db.sh
-            aws s3 cp /var/log/cloud-init-output.log s3://$BUCKET_NAME
+            sudo -E bash ./config_db.sh &>> log.txt
+            aws s3 cp log.txt s3://$BUCKET_NAME
             #Shutdown and terminate this temporary instance 
             sleep 20
             shutdown -h now

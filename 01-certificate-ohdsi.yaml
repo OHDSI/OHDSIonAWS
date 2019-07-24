@@ -190,7 +190,7 @@ Resources:
                   cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, resource_id)
       Handler: index.lambda_handler
       Runtime: python3.6
-      Timeout: 300
+      Timeout: 900
       Role: !GetAtt DNSValidatedCertificateResourceFunctionRole.Arn
 
   Certificate:

@@ -21,6 +21,7 @@ Parameters:
     Type: String
   DatabaseInstanceType:
     AllowedValues:
+      - db.t3.medium
       - db.r4.large
       - db.r4.xlarge
       - db.r4.2xlarge
@@ -81,6 +82,7 @@ Resources:
       MasterUsername: 'master'
       MasterUserPassword: !Ref DatabaseMasterPassword
       Engine: aurora-postgresql
+      EngineVersion: 10.7
       StorageEncrypted: 'True'
       Port: 5432
       DBSubnetGroupName:
@@ -97,6 +99,7 @@ Resources:
       DBParameterGroupName:
         Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
+      EngineVersion: 10.7
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
@@ -111,6 +114,7 @@ Resources:
       DBParameterGroupName:
         Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
+      EngineVersion: 10.7
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
@@ -119,14 +123,14 @@ Resources:
     Type: AWS::RDS::DBClusterParameterGroup
     Properties:
       Description: CloudFormation Sample Aurora Cluster Parameter Group
-      Family: aurora-postgresql9.6
+      Family: aurora-postgresql10
       Parameters:
         rds.force_ssl: 1
   RDSDBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: CloudFormation Sample Aurora Parameter Group
-      Family: aurora-postgresql9.6
+      Family: aurora-postgresql10
       Parameters:
         log_rotation_age: 60
   RDSDBSubnets:
