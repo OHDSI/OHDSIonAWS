@@ -188,7 +188,7 @@ The web tier contains the Atlas/WebAPI Apache and Tomcat auto-scaling instances 
 | Enable Authentication For Atlas? | If true, this will use the comma-delimited list of usernames and passwords provided for RStudio to control access to Atlas.  The first user in the list will be an 'admin' |
 
 
-##### OHDSI Component Versions parameters
+##### OHDSI Project Versions parameters
 This parameters section contains a list of the OHDSI components that will be deployed in your environment and allows you to provide the version number as a parameter.  Default versions are provided that work well together, but you can provide your own version numbers if you desire.  The version number here must map to a **tagged release** or **branch** for that component in it's GitHub repository.  For instance, this is the [list of tagged releases for the OHDSI WebAPI project](https://github.com/OHDSI/WebAPI/tags).
 <p align="center">
 <img src="https://github.com/OHDSI/OHDSIonAWS/blob/master/images/latest_versions.png">
