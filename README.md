@@ -143,7 +143,7 @@ If you do not intend to use Route 53 and ACM to automatically generate and provi
 | Number of nodes in your Redshift cluster | **Required** The number of nodes determines the overall processing power and storage space of your OMOP CDM data warehouse.  Additional scaling details can be found in [the Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-about-clusters-and-nodes). |
 | Aurora PostgreSQL and Redshift master password | **Required** This password will be used for the ```master``` user of the Aurora PostgreSQL WebAPI database and the Redshift OMOP CDM data warehouse.  It must have a length of 8-41 and be letters (upper or lower), numbers, and/or these special characters ```~#%^*_+,-```.
 
-##### Database Tier - Sources parameters
+##### OMOP Sources parameters
 These parameters allow you to specify any number of OMOP formatted data sources that will be automatically loaded into your OHDSI environment.  After they are loaded, the Achilles project will be used to populate a Results schema for each source enabling population-level visualizations within Atlas and also data quality feedback from Achilles Heel.
 
 |Parameter Name| Description|
