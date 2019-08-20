@@ -153,6 +153,13 @@ Parameters:
       - "true"
       - "false"
     Default: false
+  ExampleStudies:
+    Type: String
+    Description: "Include example studies in Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true 
   UserList:
     Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
     Type: 'String'
@@ -763,8 +770,8 @@ Resources:
                     
                     #Grab R binaries   
                     cd /usr/lib64/R/library
-                    wget https://ohdsi-sample-data.s3.amazonaws.com/rdependencies.tar.gz
-                    tar zxvf rdependencies.tar.gz
+                    wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-3.5.3.tar.gz
+                    tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
                     cd /tmp
 
                     #Install R dependencies if any of the specified versions differ
@@ -797,12 +804,18 @@ Resources:
                           let count+=1
                           continue
                         else
-                          curl -d "login=$username&password=$i" -X POST ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db
+                          sleep 5
+                          while [ `curl -w "\\n%{http_code}\\n" -d "login=$username" --data-urlencode "password=$i" -X POST ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db 2>/dev/null | tail -n 1` -ne 200 ]
+                          do
+                            sleep 5
+                          done
                           userid=`psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "select id from webapi.sec_user where login = '$username';"`
                           echo $userid >> /tmp/userids.txt
                           if [ "$count" = "2" ]; then
                             psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,2);"
                             psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
+                            firstuser=$username
+                            firstpassword="$i"
                           else
                             psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
                           fi
@@ -860,10 +873,16 @@ Resources:
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f $i.sql
 
                           #Get the Results Schema from WebAPI and apply the Results schema
-                          wget -q "${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results" -O results_schema.sql
+                          t="0"
+                          while [ $t -lt 10  ]; do
+                              wget --retry-connrefused --waitretry=2 --read-timeout=20 --timeout=15 -t 10 -q "${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results" -O results_schema.sql --continue
+                              if [ $? = 0 ]; then break; else t=$[$t+1]; fi; # check return value, break if successful (0)
+                              sleep 3s;
+                          done;                          
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -c "CREATE SCHEMA ${!i}results;"
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f results_schema.sql
-
+                          rm results_schema.sql
+                          
                           #Create a WebAPI Sources DDL for this Source
                           cp postgres_init_sources.sql postgres_init_sources-$i.sql
                           let SOURCECOUNT+=1
@@ -910,6 +929,57 @@ Resources:
                           fi
                           aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
                     done
+                    
+                    sleep 30
+
+                    if [ "$EXAMPLESTUDIES" = "true" ]; then
+                      wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsiexamplestudies.zip
+                      unzip ohdsiexamplestudies.zip
+                      if [ "$ATLASSECURITY" = "true" ]; then
+                        TOKEN=`curl -v -X POST -d "rememberMe=false" -d "login=$firstuser" --data-urlencode "password=$firstpassword" ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db 2>&1 | grep Bearer | cut -d ' ' -f 3`
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done    
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done
+                      else
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done    
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done   
+                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        do
+                          sleep 5
+                        done
+                      fi
+                    fi
 
 
                   - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'elasticbeanstalk.com']]] }
@@ -1144,173 +1214,173 @@ Resources:
               /tmp/rdependencies.r:
                 content: !Sub |
                   print("Testing to see if R dependency libraries are installed...")
-                  if("callr" %in% rownames(installed.packages()) == FALSE){install.packages("callr", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("cli" %in% rownames(installed.packages()) == FALSE){install.packages("cli", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("digest" %in% rownames(installed.packages()) == FALSE){install.packages("digest", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("git2r" %in% rownames(installed.packages()) == FALSE){install.packages("git2r", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("httr" %in% rownames(installed.packages()) == FALSE){install.packages("httr", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("jsonlite" %in% rownames(installed.packages()) == FALSE){install.packages("jsonlite", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("memoise" %in% rownames(installed.packages()) == FALSE){install.packages("memoise", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("pkgbuild" %in% rownames(installed.packages()) == FALSE){install.packages("pkgbuild", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("pkgload" %in% rownames(installed.packages()) == FALSE){install.packages("pkgload", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("rcmdcheck" %in% rownames(installed.packages()) == FALSE){install.packages("rcmdcheck", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("remotes" %in% rownames(installed.packages()) == FALSE){install.packages("remotes", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("rstudioapi" %in% rownames(installed.packages()) == FALSE){install.packages("rstudioapi", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("sessioninfo" %in% rownames(installed.packages()) == FALSE){install.packages("sessioninfo", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("usethis" %in% rownames(installed.packages()) == FALSE){install.packages("usethis", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if("withr" %in% rownames(installed.packages()) == FALSE){install.packages("withr", repos = "http://cran.us.r-project.org", upgrade = "never")}
+                  try(if("callr" %in% rownames(installed.packages()) == FALSE){install.packages("callr", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("cli" %in% rownames(installed.packages()) == FALSE){install.packages("cli", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("digest" %in% rownames(installed.packages()) == FALSE){install.packages("digest", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("git2r" %in% rownames(installed.packages()) == FALSE){install.packages("git2r", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("httr" %in% rownames(installed.packages()) == FALSE){install.packages("httr", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("jsonlite" %in% rownames(installed.packages()) == FALSE){install.packages("jsonlite", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("memoise" %in% rownames(installed.packages()) == FALSE){install.packages("memoise", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("pkgbuild" %in% rownames(installed.packages()) == FALSE){install.packages("pkgbuild", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("pkgload" %in% rownames(installed.packages()) == FALSE){install.packages("pkgload", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("processx" %in% rownames(installed.packages()) == FALSE){install.packages("processx", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("rcmdcheck" %in% rownames(installed.packages()) == FALSE){install.packages("rcmdcheck", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("remotes" %in% rownames(installed.packages()) == FALSE){install.packages("remotes", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("rstudioapi" %in% rownames(installed.packages()) == FALSE){install.packages("rstudioapi", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("sessioninfo" %in% rownames(installed.packages()) == FALSE){install.packages("sessioninfo", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("usethis" %in% rownames(installed.packages()) == FALSE){install.packages("usethis", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if("withr" %in% rownames(installed.packages()) == FALSE){install.packages("withr", repos = "http://cran.us.r-project.org", upgrade = "never")})
 
-                  if(packageVersion("devtools") != "2.0.2"){install.packages("https://cran.r-project.org/src/contrib/Archive/devtools/devtools_2.0.2.tar.gz", repos=NULL, type="source")}
+                  try(if(("devtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("devtools") != "2.0.2")){install.packages("https://cran.r-project.org/src/contrib/Archive/devtools/devtools_2.0.2.tar.gz", repos=NULL, type="source")})
+                  try(if(("remotes" %in% rownames(installed.packages()) == FALSE) || (packageVersion("remotes") != "2.0.4")){devtools::install_version("remotes", version = "2.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
 
-                  if(packageVersion("acepack") != "1.4.1"){devtools::install_version("acepack", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("askpass") != "1.1"){devtools::install_version("askpass", version = "1.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("assertthat") != "0.2.1"){devtools::install_version("assertthat", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("AUC") != "0.3.0"){devtools::install_version("AUC", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.ec2metadata") != "0.1.6"){devtools::install_version("aws.ec2metadata", version = "0.1.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.s3") != "0.3.20"){devtools::install_version("aws.s3", version = "0.3.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("aws.signature") != "0.5.0"){devtools::install_version("aws.signature", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("backports") != "1.1.4"){devtools::install_version("backports", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("base64enc") != "0.1-3"){devtools::install_version("base64enc", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("BH") != "1.69.0-1"){devtools::install_version("BH", version = "1.69.0-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("bit") != "1.1-14"){devtools::install_version("bit", version = "1.1-14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("bitops") != "1.0-6"){devtools::install_version("bitops", version = "1.0-6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("caTools") != "1.17.1.2"){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("checkmate") != "1.9.3"){devtools::install_version("checkmate", version = "1.9.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("clipr") != "0.6.0"){devtools::install_version("clipr", version = "0.6.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("clisymbols") != "1.2.0"){devtools::install_version("clisymbols", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("colorspace") != "1.4-1"){devtools::install_version("colorspace", version = "1.4-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("config") != "0.3"){devtools::install_version("config", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("crayon") != "1.3.4"){devtools::install_version("crayon", version = "1.3.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("crosstalk") != "1.0.0"){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("curl") != "3.3"){devtools::install_version("curl", version = "3.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("data.table") != "1.12.2"){devtools::install_version("data.table", version = "1.12.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("DBI") != "1.0.0"){devtools::install_version("DBI", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("desc") != "1.2.0"){devtools::install_version("desc", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("devtools") != "2.0.2"){devtools::install_version("devtools", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("diagram") != "1.6.4"){devtools::install_version("diagram", version = "1.6.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("doParallel") != "1.0.14"){devtools::install_version("doParallel", version = "1.0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("dplyr") != "0.8.1"){devtools::install_version("dplyr", version = "0.8.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("DT") != "0.7"){devtools::install_version("DT", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("evaluate") != "0.14"){devtools::install_version("evaluate", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fansi") != "0.4.0"){devtools::install_version("fansi", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fastmatch") != "1.1-0"){devtools::install_version("fastmatch", version = "1.1-0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ff") != "2.2-14"){devtools::install_version("ff", version = "2.2-14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ffbase") != "0.12.7"){devtools::install_version("ffbase", version = "0.12.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("foreach") != "1.4.4"){devtools::install_version("foreach", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("formatR") != "1.7"){devtools::install_version("formatR", version = "1.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Formula") != "1.2-3"){devtools::install_version("Formula", version = "1.2-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("fs") != "1.3.1"){devtools::install_version("fs", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("functional") != "0.6"){devtools::install_version("functional", version = "0.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gdtools") != "0.1.9"){devtools::install_version("gdtools", version = "0.1.9", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("generics") != "0.0.2"){devtools::install_version("generics", version = "0.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ggplot2") != "3.2.0"){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gh") != "1.0.1"){devtools::install_version("gh", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("glue") != "1.3.1"){devtools::install_version("glue", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gridExtra") != "2.3"){devtools::install_version("gridExtra", version = "2.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("gtable") != "0.3.0"){devtools::install_version("gtable", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("hexbin") != "1.27.3"){devtools::install_version("hexbin", version = "1.27.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("highr") != "0.8"){devtools::install_version("highr", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Hmisc") != "4.2-0"){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmlTable") != "1.13.1"){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmltools") != "0.3.6"){devtools::install_version("htmltools", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("htmlwidgets") != "1.3"){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("httpuv") != "1.5.0"){devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ini") != "0.3.1"){devtools::install_version("ini", version = "0.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("iterators") != "1.0.10"){devtools::install_version("iterators", version = "1.0.10", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("itertools") != "0.1-3"){devtools::install_version("itertools", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("keras") != "2.2.4.1"){devtools::install_version("keras", version = "2.2.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("knitr") != "1.23"){devtools::install_version("knitr", version = "1.23", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("labeling") != "0.3"){devtools::install_version("labeling", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("later") != "0.8.0"){devtools::install_version("later", version = "0.8.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("latticeExtra") != "0.6-28"){devtools::install_version("latticeExtra", version = "0.6-28", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("lazyeval") != "0.2.2"){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("magrittr") != "1.5"){devtools::install_version("magrittr", version = "1.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("mailR") != "0.4.1"){devtools::install_version("mailR", version = "0.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("markdown") != "1"){devtools::install_version("markdown", version = "1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("mime") != "0.7"){devtools::install_version("mime", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("munsell") != "0.5.0"){devtools::install_version("munsell", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("officer") != "0.3.5"){devtools::install_version("officer", version = "0.3.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("openssl") != "1.4"){devtools::install_version("openssl", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("openxlsx") != "4.1.0.1"){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pack") != "0.1-1"){devtools::install_version("pack", version = "0.1-1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ParallelLogger") != "1.1.0"){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pillar") != "1.4.1"){devtools::install_version("pillar", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pkgconfig") != "2.0.2"){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plogr") != "0.2.0"){devtools::install_version("plogr", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plotly") != "4.9.0"){devtools::install_version("plotly", version = "4.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("plyr") != "1.8.4"){devtools::install_version("plyr", version = "1.8.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("png") != "0.1-7"){devtools::install_version("png", version = "0.1-7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("prettyunits") != "1.0.2"){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("pROC") != "1.15.0"){devtools::install_version("pROC", version = "1.15.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("processx") != "3.3.1"){devtools::install_version("processx", version = "3.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("promises") != "1.0.1"){devtools::install_version("promises", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("PRROC") != "1.3.1"){devtools::install_version("PRROC", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ps") != "1.3.0"){devtools::install_version("ps", version = "1.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("purrr") != "0.3.2"){devtools::install_version("purrr", version = "0.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("PythonInR") != "0.1-4"){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.methodsS3") != "1.7.1"){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.oo") != "1.22.0"){devtools::install_version("R.oo", version = "1.22.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R.utils") != "2.9.0"){devtools::install_version("R.utils", version = "2.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("R6") != "2.4.0"){devtools::install_version("R6", version = "2.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RColorBrewer") != "1.1-2"){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("Rcpp") != "1.0.1"){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RcppEigen") != "0.3.3.5.0"){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RCurl") != "1.95-4.12"){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ReporteRs") != "0.8.10"){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("ReporteRsjars") != "0.0.4"){devtools::install_version("ReporteRsjars", version = "0.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("reshape2") != "1.4.3"){devtools::install_version("reshape2", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("reticulate") != "1.12"){devtools::install_version("reticulate", version = "1.12", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rJava") != "0.9-11"){devtools::install_version("rJava", version = "0.9-11", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rjson") != "0.2.20"){devtools::install_version("rjson", version = "0.2.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("RJSONIO") != "1.3-1.2"){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rlang") != "0.4.0"){devtools::install_version("rlang", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rmarkdown") != "1.13"){devtools::install_version("rmarkdown", version = "1.13", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rprojroot") != "1.3-2"){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("rvg") != "0.2.1"){devtools::install_version("rvg", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("scales") != "1.0.0"){devtools::install_version("scales", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shape") != "1.4.4"){devtools::install_version("shape", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shiny") != "1.3.2"){devtools::install_version("shiny", version = "1.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shinycssloaders") != "0.2.0"){devtools::install_version("shinycssloaders", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("shinydashboard") != "0.7.1"){devtools::install_version("shinydashboard", version = "0.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("slam") != "0.1-45"){devtools::install_version("slam", version = "0.1-45", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("snow") != "0.4-3"){devtools::install_version("snow", version = "0.4-3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("sourcetools") != "0.1.7"){devtools::install_version("sourcetools", version = "0.1.7", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("stringi") != "1.4.3"){devtools::install_version("stringi", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("stringr") != "1.4.0"){devtools::install_version("stringr", version = "1.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("survAUC") != "1.0-5"){devtools::install_version("survAUC", version = "1.0-5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("sys") != "3.2"){devtools::install_version("sys", version = "3.2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tensorflow") != "1.13.1"){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tfruns") != "1.4"){devtools::install_version("tfruns", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tibble") != "2.1.3"){devtools::install_version("tibble", version = "2.1.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tidyr") != "0.8.3"){devtools::install_version("tidyr", version = "0.8.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tidyselect") != "0.2.5"){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("tinytex") != "0.14"){devtools::install_version("tinytex", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("triebeard") != "0.3.0"){devtools::install_version("triebeard", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("urltools") != "1.7.3"){devtools::install_version("urltools", version = "1.7.3", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("utf8") != "1.1.4"){devtools::install_version("utf8", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("uuid") != "0.1-2"){devtools::install_version("uuid", version = "0.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("vctrs") != "0.1.0"){devtools::install_version("vctrs", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("viridis") != "0.5.1"){devtools::install_version("viridis", version = "0.5.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("viridisLite") != "0.3.0"){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("whisker") != "0.3-2"){devtools::install_version("whisker", version = "0.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xfun") != "0.8"){devtools::install_version("xfun", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xgboost") != "0.6.4.1"){devtools::install_version("xgboost", version = "0.6.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("XML") != "3.98-1.20"){devtools::install_version("XML", version = "3.98-1.20", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xml2") != "1.2.0"){devtools::install_version("xml2", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xopen") != "1.0.0"){devtools::install_version("xopen", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("xtable") != "1.8-4"){devtools::install_version("xtable", version = "1.8-4", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("yaml") != "2.2.0"){devtools::install_version("yaml", version = "2.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
-                  if(packageVersion("zeallot") != "0.1.0"){devtools::install_version("zeallot", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")}
+                  try(if(("aws.signature" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.signature") != "0.5.0")){install.packages("aws.signature", version = "0.5.0", repos = "http://cloudyr.github.io/drat", upgrade = "never")})
+                  try(if(("aws.ec2metadata" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.ec2metadata") != "0.1.6")){install.packages("aws.ec2metadata", version = "0.1.6", repos = "http://cloudyr.github.io/drat", upgrade = "never")})
+                  try(if(("aws.s3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.s3") != "0.3.20")){install.packages("aws.s3", version = "0.3.20", repos = "http://cloudyr.github.io/drat", upgrade = "never")})
+                  try(if(("acepack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("acepack") != "1.4.1")){devtools::install_version("acepack", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("askpass" %in% rownames(installed.packages()) == FALSE) || (packageVersion("askpass") != "1.1")){devtools::install_version("askpass", version = "1.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("assertthat" %in% rownames(installed.packages()) == FALSE) || (packageVersion("assertthat") != "0.2.1")){devtools::install_version("assertthat", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("AUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("AUC") != "0.3.0")){devtools::install_version("AUC", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("backports" %in% rownames(installed.packages()) == FALSE) || (packageVersion("backports") != "1.1.4")){devtools::install_version("backports", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("base64enc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("base64enc") != "0.1-3")){devtools::install_version("base64enc", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("BH" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BH") != "1.69.0-1")){devtools::install_version("BH", version = "1.69.0-1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("bit" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bit") != "1.1-14")){devtools::install_version("bit", version = "1.1-14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("bitops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bitops") != "1.0-6")){devtools::install_version("bitops", version = "1.0-6", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("caTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("caTools") != "1.17.1.2")){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("checkmate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("checkmate") != "1.9.3")){devtools::install_version("checkmate", version = "1.9.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("clipr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clipr") != "0.6.0")){devtools::install_version("clipr", version = "0.6.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("clisymbols" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clisymbols") != "1.2.0")){devtools::install_version("clisymbols", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("colorspace" %in% rownames(installed.packages()) == FALSE) || (packageVersion("colorspace") != "1.4-1")){devtools::install_version("colorspace", version = "1.4-1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("config" %in% rownames(installed.packages()) == FALSE) || (packageVersion("config") != "0.3")){devtools::install_version("config", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("crayon" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crayon") != "1.3.4")){devtools::install_version("crayon", version = "1.3.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("crosstalk" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crosstalk") != "1.0.0")){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("curl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("curl") != "3.3")){devtools::install_version("curl", version = "3.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("data.table" %in% rownames(installed.packages()) == FALSE) || (packageVersion("data.table") != "1.12.2")){devtools::install_version("data.table", version = "1.12.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("DBI" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DBI") != "1.0.0")){devtools::install_version("DBI", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("desc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("desc") != "1.2.0")){devtools::install_version("desc", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("diagram" %in% rownames(installed.packages()) == FALSE) || (packageVersion("diagram") != "1.6.4")){devtools::install_version("diagram", version = "1.6.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("doParallel" %in% rownames(installed.packages()) == FALSE) || (packageVersion("doParallel") != "1.0.14")){devtools::install_version("doParallel", version = "1.0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("dplyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("dplyr") != "0.8.1")){devtools::install_version("dplyr", version = "0.8.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("DT" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DT") != "0.7")){devtools::install_version("DT", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("evaluate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("evaluate") != "0.14")){devtools::install_version("evaluate", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("fansi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fansi") != "0.4.0")){devtools::install_version("fansi", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("fastmatch" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fastmatch") != "1.1-0")){devtools::install_version("fastmatch", version = "1.1-0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ff" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ff") != "2.2-14")){devtools::install_version("ff", version = "2.2-14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ffbase" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ffbase") != "0.12.7")){devtools::install_version("ffbase", version = "0.12.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("foreach" %in% rownames(installed.packages()) == FALSE) || (packageVersion("foreach") != "1.4.4")){devtools::install_version("foreach", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("formatR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("formatR") != "1.7")){devtools::install_version("formatR", version = "1.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("Formula" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Formula") != "1.2-3")){devtools::install_version("Formula", version = "1.2-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("fs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fs") != "1.3.1")){devtools::install_version("fs", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("functional" %in% rownames(installed.packages()) == FALSE) || (packageVersion("functional") != "0.6")){devtools::install_version("functional", version = "0.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("gdtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gdtools") != "0.1.9")){devtools::install_version("gdtools", version = "0.1.9", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("generics" %in% rownames(installed.packages()) == FALSE) || (packageVersion("generics") != "0.0.2")){devtools::install_version("generics", version = "0.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ggplot2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ggplot2") != "3.2.0")){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("gh" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gh") != "1.0.1")){devtools::install_version("gh", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("glue" %in% rownames(installed.packages()) == FALSE) || (packageVersion("glue") != "1.3.1")){devtools::install_version("glue", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("gridExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gridExtra") != "2.3")){devtools::install_version("gridExtra", version = "2.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("gtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gtable") != "0.3.0")){devtools::install_version("gtable", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("hexbin" %in% rownames(installed.packages()) == FALSE) || (packageVersion("hexbin") != "1.27.3")){devtools::install_version("hexbin", version = "1.27.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("highr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("highr") != "0.8")){devtools::install_version("highr", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("Hmisc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hmisc") != "4.2-0")){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("htmlTable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlTable") != "1.13.1")){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.3.6")){devtools::install_version("htmltools", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("htmlwidgets" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlwidgets") != "1.3")){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.5.0")){devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ini" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ini") != "0.3.1")){devtools::install_version("ini", version = "0.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("iterators" %in% rownames(installed.packages()) == FALSE) || (packageVersion("iterators") != "1.0.10")){devtools::install_version("iterators", version = "1.0.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("itertools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("itertools") != "0.1-3")){devtools::install_version("itertools", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("keras" %in% rownames(installed.packages()) == FALSE) || (packageVersion("keras") != "2.2.4.1")){devtools::install_version("keras", version = "2.2.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("knitr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("knitr") != "1.23")){devtools::install_version("knitr", version = "1.23", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("labeling" %in% rownames(installed.packages()) == FALSE) || (packageVersion("labeling") != "0.3")){devtools::install_version("labeling", version = "0.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("later" %in% rownames(installed.packages()) == FALSE) || (packageVersion("later") != "0.8.0")){devtools::install_version("later", version = "0.8.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("latticeExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("latticeExtra") != "0.6-28")){devtools::install_version("latticeExtra", version = "0.6-28", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("lazyeval" %in% rownames(installed.packages()) == FALSE) || (packageVersion("lazyeval") != "0.2.2")){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("magrittr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("magrittr") != "1.5")){devtools::install_version("magrittr", version = "1.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("mailR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mailR") != "0.4.1")){devtools::install_version("mailR", version = "0.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("markdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("markdown") != "1")){devtools::install_version("markdown", version = "1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("mime" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mime") != "0.7")){devtools::install_version("mime", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("munsell" %in% rownames(installed.packages()) == FALSE) || (packageVersion("munsell") != "0.5.0")){devtools::install_version("munsell", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("officer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("officer") != "0.3.5")){devtools::install_version("officer", version = "0.3.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("openssl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openssl") != "1.4")){devtools::install_version("openssl", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("openxlsx" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openxlsx") != "4.1.0.1")){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("pack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pack") != "0.1-1")){devtools::install_version("pack", version = "0.1-1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ParallelLogger" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ParallelLogger") != "1.1.0")){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("pillar" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pillar") != "1.4.1")){devtools::install_version("pillar", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("pkgconfig" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pkgconfig") != "2.0.2")){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("plogr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plogr") != "0.2.0")){devtools::install_version("plogr", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("plotly" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plotly") != "4.9.0")){devtools::install_version("plotly", version = "4.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("plyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plyr") != "1.8.4")){devtools::install_version("plyr", version = "1.8.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("png" %in% rownames(installed.packages()) == FALSE) || (packageVersion("png") != "0.1-7")){devtools::install_version("png", version = "0.1-7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("prettyunits" %in% rownames(installed.packages()) == FALSE) || (packageVersion("prettyunits") != "1.0.2")){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("pROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pROC") != "1.15.0")){devtools::install_version("pROC", version = "1.15.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.0.1")){devtools::install_version("promises", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("PRROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PRROC") != "1.3.1")){devtools::install_version("PRROC", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.3.0")){devtools::install_version("ps", version = "1.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("purrr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("purrr") != "0.3.2")){devtools::install_version("purrr", version = "0.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("PythonInR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PythonInR") != "0.1-4")){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("R.methodsS3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.methodsS3") != "1.7.1")){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("R.oo" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.oo") != "1.22.0")){devtools::install_version("R.oo", version = "1.22.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("R.utils" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.utils") != "2.9.0")){devtools::install_version("R.utils", version = "2.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("R6" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R6") != "2.4.0")){devtools::install_version("R6", version = "2.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("RColorBrewer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RColorBrewer") != "1.1-2")){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("Rcpp" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Rcpp") != "1.0.1")){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("RcppEigen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RcppEigen") != "0.3.3.5.0")){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("RCurl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RCurl") != "1.95-4.12")){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ReporteRs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRs") != "0.8.10")){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ReporteRsjars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRsjars") != "0.0.4")){devtools::install_version("ReporteRsjars", version = "0.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("reshape2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reshape2") != "1.4.3")){devtools::install_version("reshape2", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("reticulate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reticulate") != "1.12")){devtools::install_version("reticulate", version = "1.12", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rJava" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rJava") != "0.9-11")){devtools::install_version("rJava", version = "0.9-11", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rjson" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rjson") != "0.2.20")){devtools::install_version("rjson", version = "0.2.20", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("RJSONIO" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RJSONIO") != "1.3-1.2")){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rlang" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rlang") != "0.4.0")){devtools::install_version("rlang", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rmarkdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rmarkdown") != "1.13")){devtools::install_version("rmarkdown", version = "1.13", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rprojroot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rprojroot") != "1.3-2")){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rvg" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rvg") != "0.2.1")){devtools::install_version("rvg", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("scales" %in% rownames(installed.packages()) == FALSE) || (packageVersion("scales") != "1.0.0")){devtools::install_version("scales", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("shape" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shape") != "1.4.4")){devtools::install_version("shape", version = "1.4.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("shiny" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shiny") != "1.3.2")){devtools::install_version("shiny", version = "1.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("shinycssloaders" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinycssloaders") != "0.2.0")){devtools::install_version("shinycssloaders", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("shinydashboard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinydashboard") != "0.7.1")){devtools::install_version("shinydashboard", version = "0.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("slam" %in% rownames(installed.packages()) == FALSE) || (packageVersion("slam") != "0.1-45")){devtools::install_version("slam", version = "0.1-45", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("snow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("snow") != "0.4-3")){devtools::install_version("snow", version = "0.4-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("sourcetools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sourcetools") != "0.1.7")){devtools::install_version("sourcetools", version = "0.1.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("stringi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringi") != "1.4.3")){devtools::install_version("stringi", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("stringr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringr") != "1.4.0")){devtools::install_version("stringr", version = "1.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("survAUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("survAUC") != "1.0-5")){devtools::install_version("survAUC", version = "1.0-5", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("sys" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sys") != "3.2")){devtools::install_version("sys", version = "3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tensorflow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tensorflow") != "1.13.1")){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tfruns" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tfruns") != "1.4")){devtools::install_version("tfruns", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tibble" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tibble") != "2.1.3")){devtools::install_version("tibble", version = "2.1.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tidyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyr") != "0.8.3")){devtools::install_version("tidyr", version = "0.8.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tidyselect" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyselect") != "0.2.5")){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tinytex" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tinytex") != "0.14")){devtools::install_version("tinytex", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("triebeard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("triebeard") != "0.3.0")){devtools::install_version("triebeard", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("urltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("urltools") != "1.7.3")){devtools::install_version("urltools", version = "1.7.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("utf8" %in% rownames(installed.packages()) == FALSE) || (packageVersion("utf8") != "1.1.4")){devtools::install_version("utf8", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("uuid" %in% rownames(installed.packages()) == FALSE) || (packageVersion("uuid") != "0.1-2")){devtools::install_version("uuid", version = "0.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("vctrs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("vctrs") != "0.1.0")){devtools::install_version("vctrs", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("viridis" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridis") != "0.5.1")){devtools::install_version("viridis", version = "0.5.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("viridisLite" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridisLite") != "0.3.0")){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("whisker" %in% rownames(installed.packages()) == FALSE) || (packageVersion("whisker") != "0.3-2")){devtools::install_version("whisker", version = "0.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("xfun" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xfun") != "0.8")){devtools::install_version("xfun", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("xgboost" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xgboost") != "0.6.4.1")){devtools::install_version("xgboost", version = "0.6.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("XML" %in% rownames(installed.packages()) == FALSE) || (packageVersion("XML") != "3.98-1.20")){devtools::install_version("XML", version = "3.98-1.20", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("xml2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xml2") != "1.2.0")){devtools::install_version("xml2", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("xopen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xopen") != "1.0.0")){devtools::install_version("xopen", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("xtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xtable") != "1.8-4")){devtools::install_version("xtable", version = "1.8-4", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("yaml" %in% rownames(installed.packages()) == FALSE) || (packageVersion("yaml") != "2.2.0")){devtools::install_version("yaml", version = "2.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("zeallot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("zeallot") != "0.1.0")){devtools::install_version("zeallot", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                 mode: 000664
                 owner: root
                 group: root  
               /tmp/achilles.r:
                 content: !Sub |
-                  if(packageVersion("SqlRender") != "${SqlRenderv}"){devtools::install_github("ohdsi/SqlRender", ref = "v${SqlRenderv}", upgrade = "never")}
-                  if(packageVersion("DatabaseConnector") != "${DatabaseConnectorv}"){devtools::install_github("ohdsi/DatabaseConnector", ref = "v${DatabaseConnectorv}", upgrade = "never")}
-                  if(packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}"){devtools::install_github("ohdsi/DatabaseConnectorJars", ref = "v${DatabaseConnectorJarsv}", upgrade = "never")}
-                  if(packageVersion("OhdsiRTools") != "${OhdsiRToolsv}"){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")}
-                  if(packageVersion("Achilles") != "${Achillesv}"){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")}
+                  try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", ref = "${SqlRenderv}", upgrade = "never")})
+                  try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", ref = "v${DatabaseConnectorv}", upgrade = "never")})
+                  try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", ref = "v${DatabaseConnectorJarsv}", upgrade = "never")})
+                  try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
+                  try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
                   library(Achilles)
                   connectionDetails <- createConnectionDetails(dbms="redshift", server="REDSHIFT_ENDPOINT/mycdm", user="master",
                                           password='DATABASE_PASSWORD', schema="CDM_PLACEHOLDER", port="5439")
@@ -1456,6 +1526,11 @@ Resources:
                         # Install SSM client
                         yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
                         restart amazon-ssm-agent
+                    03SkipBadJars:
+                      command: |
+                        # Without this, sometimes WebAPI fails to start referencing the following class: [org.bouncycastle.asn1.ASN1Boolean
+                        sudo echo "tomcat.util.scan.StandardJarScanFilter.jarsToSkip=bcprov*.jar" >> /etc/tomcat8/catalina.properties
+
                     create_post_dir:
                         command: "mkdir /opt/elasticbeanstalk/hooks/appdeploy/post"
                         ignoreErrors: true
@@ -1505,7 +1580,12 @@ Resources:
             export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
             export OHDSISECURITYPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_security_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
             export ATLASSECURITY=${AtlasSecurity}
-            export ATLASUSERS=${UserList}  
+            export EXAMPLESTUDIES=${ExampleStudies}
+            export ATLASUSERS="${UserList}"
+
+            # Install SSM client
+            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            restart amazon-ssm-agent
 
             yum update -y aws-cli 
             yum install -y awslogs git
