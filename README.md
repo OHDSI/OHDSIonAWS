@@ -38,6 +38,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | MethodEvaluation | v1.0.2 |
 | Hydra | v0.0.4 |
 | PredictionComparison | v1.0.0 |
+| Eunomia | v0.0.1 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
