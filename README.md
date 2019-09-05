@@ -27,18 +27,18 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | PatientLevelPrediction | v3.0.6 |
 | CohortMethod | v3.1.0 |
 | SqlRender | v1.6.2 |
-| DatabaseConnector | v2.2.0 |
+| DatabaseConnector | v2.4.0 |
 | DatabaseConnectorJars | v1.0.0 |
 | SqlRender | v1.6.2 |
 | OhdsiRTools | v1.7.0 |
-| FeatureExtraction | v2.2.4 |
+| FeatureExtraction | v2.2.5 |
 | Cyclops | v2.0.2 |
 | EmpiricalCalibration | v2.0.0 |
 | OhdsiSharing | v0.1.3 |
-| MethodEvaluation | v1.0.2 |
+| MethodEvaluation | v1.1.0 |
 | Hydra | v0.0.4 |
 | PredictionComparison | v1.0.0 |
-| Eunomia | v0.0.1 |
+| Eunomia | v1.0.0 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
