@@ -24,8 +24,8 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | Atlas | v2.7.3 |
 | WebAPI | v2.7.3 | 
 | Achilles | v1.6.3 |
-| PatientLevelPrediction | v3.0.5 |
-| CohortMethod | v3.0.2 |
+| PatientLevelPrediction | v3.0.6 |
+| CohortMethod | v3.1.0 |
 | SqlRender | v1.6.2 |
 | DatabaseConnector | v2.2.0 |
 | DatabaseConnectorJars | v1.0.0 |
