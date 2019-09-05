@@ -187,6 +187,8 @@ Parameters:
     Type: String
   RStudioTargetGroupArn:
     Type: String
+  JupyterTargetGroupArn:
+    Type: String
   RDSEndpoint: 
     Type: String
   RedshiftEndpoint: 
@@ -417,6 +419,9 @@ Resources:
         - Namespace: aws:elasticbeanstalk:healthreporting:system
           OptionName: SystemType
           Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application
+          OptionName: 'Application Healthcheck URL'
+          Value: '/WebAPI/info'
         - Namespace: aws:elbv2:loadbalancer
           OptionName: IdleTimeout
           Value: 240
@@ -447,6 +452,12 @@ Resources:
         - Namespace: aws:elasticbeanstalk:environment:process:https
           OptionName: StickinessEnabled
           Value: true  
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
         - Namespace: aws:elasticbeanstalk:container:tomcat:jvmoptions
           OptionName: Xmx
           Value: !FindInMap [tomcatconfig, !Ref WebInstanceType, Xmx]    
@@ -549,6 +560,9 @@ Resources:
         - Namespace: aws:elasticbeanstalk:healthreporting:system
           OptionName: SystemType
           Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application
+          OptionName: 'Application Healthcheck URL'
+          Value: '/WebAPI/info'
         - Namespace: aws:elbv2:loadbalancer
           OptionName: IdleTimeout
           Value: 240
@@ -570,6 +584,12 @@ Resources:
         - Namespace: aws:elasticbeanstalk:environment:process:https
           OptionName: StickinessEnabled
           Value: true 
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
         - Namespace: aws:elasticbeanstalk:container:tomcat:jvmoptions
           OptionName: Xmx
           Value: !FindInMap [tomcatconfig, !Ref WebInstanceType, Xmx]    
@@ -647,9 +667,9 @@ Resources:
                   sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
                   sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
                   sudo yum install -y apache-maven
-                  sudo yum install -y java-1.8.0
-                  sudo yum install -y java-1.8.0-openjdk-devel
+                  sudo yum install -y java-1.8.0 java-1.8.0-openjdk-devel
                   export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
+                  sudo /usr/sbin/alternatives --set javac /usr/lib/jvm/java-1.8.0-openjdk.x86_64/bin/javac
                   
                   #If specified, enable WebAPI security and create users
                   if [ "$ATLASSECURITY" = "true" ]; then
@@ -784,14 +804,16 @@ Resources:
                     done
 
                     #Connect R-Studio Instance to the load balancer
-                    if [ "$RSTUDIO_TARGET_GROUP_ARN" != "none" ]; then
-                        export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
-                        export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
-                        export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+                    export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
+                    export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
+                    export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+                    aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
 
-                        aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
-                    fi
-
+                    #Connect Jupyter to the load balancer
+                    export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
+                    export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
+                    export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+                    aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 5 --conditions Field=host-header,Values='jupyter.*' --actions Type=forward,TargetGroupArn=$JUPYTER_TARGET_GROUP_ARN
 
                     #If using Atlas security, give users permissions in Atlas
                     export PGPASSWORD=$DATABASE_PASSWORD
@@ -1561,60 +1583,59 @@ Resources:
         - Key: "Name"
           Value: "ohdsi-temp-build-instance"
       UserData:
-        Fn::Base64: !Sub 
-          - | 
-            #!/bin/bash
-            export RDS_ENDPOINT=${RDSEndpoint}
-            export EB_ENDPOINT=${EBEndpoint}.${AWS::Region}.elasticbeanstalk.com
-            export REDSHIFT_ENDPOINT=${RedshiftEndpoint}
-            export ACCT_ID=${AWS::AccountId}
-            export BUCKET_NAME=${EBBucket}
-            export DATABASE_PASSWORD=${DatabaseMasterPassword}
-            export RS_ROLE_ARN=${RSRoleArn}
-            export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
-            export RSTUDIO_TARGET_GROUP_ARN=${RstudioTGArn}
-            export CDM_VERSION=${OMOPv}
-            export SOURCES=${Sources}
-            export SOURCESBUCKET=${SourcesBucket}
-            export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            export OHDSISECURITYPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_security_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
-            export ATLASSECURITY=${AtlasSecurity}
-            export EXAMPLESTUDIES=${ExampleStudies}
-            export ATLASUSERS="${UserList}"
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          export RDS_ENDPOINT=${RDSEndpoint}
+          export EB_ENDPOINT=${EBEndpoint}.${AWS::Region}.elasticbeanstalk.com
+          export REDSHIFT_ENDPOINT=${RedshiftEndpoint}
+          export ACCT_ID=${AWS::AccountId}
+          export BUCKET_NAME=${EBBucket}
+          export DATABASE_PASSWORD=${DatabaseMasterPassword}
+          export RS_ROLE_ARN=${RSRoleArn}
+          export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
+          export RSTUDIO_TARGET_GROUP_ARN=${RStudioTargetGroupArn}
+          export JUPYTER_TARGET_GROUP_ARN=${JupyterTargetGroupArn}
+          export CDM_VERSION=${OMOPv}
+          export SOURCES=${Sources}
+          export SOURCESBUCKET=${SourcesBucket}
+          export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export OHDSISECURITYPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_security_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export ATLASSECURITY=${AtlasSecurity}
+          export EXAMPLESTUDIES=${ExampleStudies}
+          export ATLASUSERS="${UserList}"
 
-            # Install SSM client
-            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-            restart amazon-ssm-agent
+          # Install SSM client
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
 
-            yum update -y aws-cli 
-            yum install -y awslogs git
+          yum update -y aws-cli 
+          yum install -y awslogs git
 
-            aws configure set metadata_service_timeout 10
-            aws configure set metadata_service_num_attempts 5
+          aws configure set metadata_service_timeout 10
+          aws configure set metadata_service_num_attempts 5
 
-            # Install SSM client
-            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-            restart amazon-ssm-agent
+          # Install SSM client
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
 
-            #Use cfn-init to grab and apply the files specified in the above UserData
-            /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
-            cd /tmp
-            git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
-            git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
-            git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
-            sudo service awslogs start
-            #sudo -E bash ./config_ohdsi.sh &>> log.txt
-            sudo -E bash ./config_ohdsi.sh
-            export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks | grep "Tomcat 8" | head -1 | cut -d \" -f2`
-            /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
-            #sudo -E bash ./config_db.sh &>> log.txt
-            sudo -E bash ./config_db.sh
-            aws s3 cp /var/log/cloud-init-output.log s3://$BUCKET_NAME
-            #Shutdown and terminate this temporary instance 
-            sleep 20
-            shutdown -h now
-          - { RstudioTGArn: !Ref RStudioTargetGroupArn }
+          #Use cfn-init to grab and apply the files specified in the above UserData
+          /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
+          cd /tmp
+          git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
+          git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
+          git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
+          sudo service awslogs start
+          #sudo -E bash ./config_ohdsi.sh &>> log.txt
+          sudo -E bash ./config_ohdsi.sh
+          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks | grep "Tomcat 8" | head -1 | cut -d \" -f2`
+          /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
+          #sudo -E bash ./config_db.sh &>> log.txt
+          sudo -E bash ./config_db.sh
+          aws s3 cp /var/log/cloud-init-output.log s3://$BUCKET_NAME
+          #Shutdown and terminate this temporary instance 
+          sleep 20
+          shutdown -h now
   EC2WaitCondition:
     Type: "AWS::CloudFormation::WaitCondition"
     DependsOn: "TempEC2Instance"
