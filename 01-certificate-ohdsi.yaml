@@ -107,7 +107,12 @@ Resources:
 
           def get_validation_resource_records(certificate_arn):
               for attempt in range(10):
-                  cert_info = acm.describe_certificate(CertificateArn=certificate_arn)
+                  while True:
+                    cert_info = acm.describe_certificate(CertificateArn=certificate_arn)
+                    if 'DomainValidationOptions' in cert_info['Certificate']:
+                      break
+                    time.sleep(1)
+                  
                   dvos = cert_info['Certificate']['DomainValidationOptions']
 
                   try:
