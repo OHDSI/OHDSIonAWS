@@ -36,7 +36,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | EmpiricalCalibration | v2.0.0 |
 | OhdsiSharing | v0.1.3 |
 | MethodEvaluation | v1.1.0 |
-| Hydra | v0.0.4 |
+| Hydra | v0.0.5 |
 | PredictionComparison | v1.0.0 |
 | Eunomia | v1.0.0 |
 
