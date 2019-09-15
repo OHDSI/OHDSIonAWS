@@ -31,7 +31,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | PatientLevelPrediction | v3.0.6 |
 | CohortMethod | v3.1.0 |
 | SqlRender | v1.6.2 |
-| DatabaseConnector | v2.4.0 |
+| DatabaseConnector | v2.4.1 |
 | DatabaseConnectorJars | v1.0.0 |
 | SqlRender | v1.6.2 |
 | OhdsiRTools | v1.7.0 |
