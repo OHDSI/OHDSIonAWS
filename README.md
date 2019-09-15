@@ -66,7 +66,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 The features of using this architecture are as follows:
 * It’s deployed in an isolated, three-tier Amazon Virtual Private Cloud (Amazon VPC).
 * Can be deployed with access from the public Internet, or accessible only from within your organization's private network.
-* It deploys the OMOP CDM with clinical and vocabulary data, Atlas, WebAPI, Achilles, and RStudio with PatientLevelPrediction, CohortMethod, and many other R libraries.
+* It deploys the OMOP CDM with clinical and vocabulary data, Atlas, WebAPI, Achilles, RStudio and Jupyter Notebooks with PatientLevelPrediction, CohortMethod, and many other R libraries.
 * Provides role-based access control for Atlas, RStudio, and Jupyter Notebooks.
 * It uses data-at-rest and in-flight encryption to respect the requirements of HIPAA.
 * It uses managed services from AWS; OS, middleware, and database patching and maintenance is largely automatic.
