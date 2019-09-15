@@ -67,7 +67,7 @@ The features of using this architecture are as follows:
 * It’s deployed in an isolated, three-tier Amazon Virtual Private Cloud (Amazon VPC).
 * Can be deployed with access from the public Internet, or accessible only from within your organization's private network.
 * It deploys the OMOP CDM with clinical and vocabulary data, Atlas, WebAPI, Achilles, and RStudio with PatientLevelPrediction, CohortMethod, and many other R libraries.
-* Provides role-based access control for Atlas and RStudio
+* Provides role-based access control for Atlas, RStudio, and Jupyter Notebooks.
 * It uses data-at-rest and in-flight encryption to respect the requirements of HIPAA.
 * It uses managed services from AWS; OS, middleware, and database patching and maintenance is largely automatic.
 * It creates automated backups for operational and disaster recovery.
@@ -231,6 +231,11 @@ Users can change their passwords after logging in by going to the **Terminal** a
 New users can also be added to the RStudio server by logging in with a user who has sudo access and using the Linux ``# adduser`` command as shown following.  Recall that the first user you provided in the RStudio user list parameter was given sudo access.  
 ![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/adduser.png "Add User")
 
+## Using Jupyter Notebooks
+This architecture now includes an implementation of Jupyter Notebooks, JupyterHub, and JupyterLab.  It runs on the same server as RStudio and allows users to login using their same username/password combination.  These users have the same home directory as when they login to RStudio, enabling them to switch back and forth between RStudio and Jupyter Notebooks depending on which environment is the best fit for their current work.
+
+You can access the Jupyter Notebook environment by using the URL in the 'Outputs' tab of the CloudFormation template (as shown below).
+![alt-text](https://github.com/OHDSI/OHDSIonAWS/blob/master/images/jupyter.gif "ConnectionDetails.R")
 
 ## Troubleshooting Deployments
 
