@@ -25,8 +25,8 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | OHDSI Component | Version |
 | --- | --- 
 | OMOP Common Data Model | v5.3.1 |
-| Atlas | v2.7.3 |
-| WebAPI | v2.7.3 | 
+| Atlas | v2.7.5 |
+| WebAPI | v2.7.5 | 
 | Achilles | v1.6.3 |
 | PatientLevelPrediction | v3.0.6 |
 | CohortMethod | v3.1.0 |
