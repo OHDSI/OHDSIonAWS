@@ -179,7 +179,7 @@ Creating and S3 bucket and uploading the 'Source'.sql files:
 |--------------|------------|
 | Instance Type for RStudio | This determines the processing power of your multi-user RStudio instance.  About 0.75GB per concurrent user is recommended.  For more information, see the [list of available EC2 instnance types](https://aws.amazon.com/ec2/instance-types/). |
 | Home Directory size for RStudio instance | The amount of encrypted disk space, in GBs, allocated to store RStudio user's local data. |
-| Comma-delimited user list for RStudio | Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server. The first user in the list will be given sudoers access. |
+| Comma-delimited user list for RStudio | Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server. The first user in the list will be given sudoers access. **Do not use 'admin' as a username.  It causes problems with Atlas security.** |
 | Bucket for PatientLevelPrediction SageMaker Models | Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you. |
 
 ##### Web Tier parameters
