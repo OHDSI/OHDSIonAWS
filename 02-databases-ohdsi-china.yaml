@@ -1,0 +1,190 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This CloudFormation Template deploys a complete OHDSI environment.  It
+  depends on the OHDSI-VPC CloudFormation Template.
+
+Parameters:
+  DatabaseType:
+    AllowedValues:
+      - "Highly Available"
+      - "Single Instance"
+    #  - "Serverless"
+    Default: "Single Instance"
+    Description: Specifies whether a to deploy the AWS Aurora MySQL Database in Multi-AZ configuration.
+    Type: String
+  DatabaseInstanceType:
+    AllowedValues:
+    #  - db.t3.medium
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+    ConstraintDescription: Must be a valid RDS instance class.
+    Default: db.r4.large
+    Description: The Amazon RDS database instance class.
+    Type: String
+  DatabaseMasterPassword:
+    Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    ConstraintDescription: The Amazon RDS master password. Letters, numbers, spaces, and these special characters `~#$%^&*()_+,-
+  RedshiftInstanceType:
+    Type: String
+    Description: DC instance types provide faster, but smaller storage.  DS instance types provide larger, but slower storage.
+    AllowedValues:
+      - dc2.large
+      - dc2.8xlarge
+      - ds2.xlarge
+      - ds2.8xlarge
+      - dc1.large
+    Default: dc2.large
+  NumRedshiftNodes:
+    AllowedPattern: ^((?!0$)[1-2]?[0-9]|32)$
+    ConstraintDescription: Must be a number between 1 and 32.
+    Default: 1
+    Description: Specifies the  number of nodes in your Redshift cluster.
+    Type: String  
+  SubnetDataA:
+    Type: AWS::EC2::Subnet::Id
+  SubnetDataB:
+    Type: AWS::EC2::Subnet::Id
+  SGData:
+    Type: AWS::EC2::SecurityGroup::Id
+  RSRoleArn:
+    Type: String
+
+
+Conditions:
+  DeployMultiAZDB: 
+    !Equals [ "Highly Available", !Ref DatabaseType ] 
+  SingleNodeRedshift:
+    !Equals [ '1', !Ref NumRedshiftNodes ]
+  MultiNodeRedshift:
+    !Not [ !Equals [ '1', !Ref NumRedshiftNodes ] ]
+  Serverless:
+    !Equals [ "Serverless", !Ref DatabaseType ]
+  NotServerless:
+    !Not [ !Equals [ "Serverless", !Ref DatabaseType ] ]
+
+Resources:
+# Deploys the RDS Aurora Postgres cluster used to store the application data for WebAPI.
+  RDSCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: 'master'
+      MasterUserPassword: !Ref DatabaseMasterPassword
+      Engine: aurora-postgresql
+      EngineVersion: 9.6.11
+      EngineMode: !If [ Serverless, 'serverless', 'provisioned' ]
+      StorageEncrypted: 'True'
+      Port: 5432
+      DBSubnetGroupName:
+        Ref: RDSDBSubnets
+      DBClusterParameterGroupName:
+        Ref: RDSDBClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !Ref SGData
+  RDSDBInstance1:
+    Condition: NotServerless
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSubnetGroupName:
+        Ref: RDSDBSubnets
+      DBParameterGroupName:
+        Ref: RDSDBParameterGroup
+      Engine: aurora-postgresql
+      EngineVersion: 9.6.11
+      DBClusterIdentifier:
+        Ref: RDSCluster
+      PubliclyAccessible: 'false'
+      DBInstanceClass: !Ref DatabaseInstanceType
+# Only create the second instance if the user specified a Multi-AZ Database  
+  RDSDBInstance2:
+    Condition: DeployMultiAZDB
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSubnetGroupName:
+        Ref: RDSDBSubnets
+      DBParameterGroupName:
+        Ref: RDSDBParameterGroup
+      Engine: aurora-postgresql
+      EngineVersion: 9.6.11
+      DBClusterIdentifier:
+        Ref: RDSCluster
+      PubliclyAccessible: 'false'
+      DBInstanceClass: !Ref DatabaseInstanceType
+  RDSDBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: CloudFormation Sample Aurora Cluster Parameter Group
+      Family: aurora-postgresql9.6
+      Parameters:
+        rds.force_ssl: 1
+  RDSDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: CloudFormation Sample Aurora Parameter Group
+      Family: aurora-postgresql9.6
+      Parameters:
+        log_rotation_age: 60
+  RDSDBSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet Group for RDS
+      SubnetIds:
+        - !Ref SubnetDataA
+        - !Ref SubnetDataB
+
+
+  RedshiftCluster: 
+    Type: "AWS::Redshift::Cluster"
+    Properties:
+      DBName: "mycdm"
+      MasterUsername: "master"
+      MasterUserPassword: !Ref DatabaseMasterPassword
+      NodeType: !Ref RedshiftInstanceType
+      ClusterType: !If [ MultiNodeRedshift, "multi-node", "single-node" ]
+      NumberOfNodes: !If [ MultiNodeRedshift, !Ref NumRedshiftNodes, "" ]
+      Encrypted: "True"
+      PubliclyAccessible: "False"
+      ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
+      IamRoles: 
+        - !Ref RSRoleArn
+      VpcSecurityGroupIds: 
+        - !Ref SGData
+      ClusterSubnetGroupName:
+        Ref: RedshiftSubnetGroup
+  RedshiftSubnetGroup:
+    Type: 'AWS::Redshift::ClusterSubnetGroup'
+    Properties:
+      Description: "Redshift Security Groups"
+      SubnetIds:
+        - !Ref SubnetDataA
+  RedshiftClusterParameterGroup: 
+    Type: "AWS::Redshift::ClusterParameterGroup"
+    Properties: 
+      Description: "My parameter group"
+      ParameterGroupFamily: "redshift-1.0"
+      Parameters: 
+        - 
+          ParameterName: "require_ssl"
+          ParameterValue: "true"
+          ParameterName: "statement_timeout"
+          ParameterValue: "3600000"
+
+Outputs:
+  RDSEndpoint: 
+    Value: !GetAtt RDSCluster.Endpoint.Address 
+  RedshiftEndpoint: 
+    Value: !GetAtt RedshiftCluster.Endpoint.Address 

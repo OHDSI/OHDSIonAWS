@@ -1,0 +1,668 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This CloudFormation Template deploys a complete OHDSI environment.  It
+  depends on the OHDSI-VPC CloudFormation Template.
+
+
+
+Parameters:
+#  VpcId:
+#    Type: AWS::EC2::VPC::Id
+#    Description: VPC this server will reside in
+  VPCSubnet:
+    Description: The subnet in which you want your R-Studio server to be deployed.
+    Type: AWS::EC2::Subnet::Id
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  RStudioSecurityGroup:
+    Description: The Security Group you want to use to contorl access to your R-Studio Server.
+    Type: AWS::EC2::SecurityGroup::Id
+  HomeDirectorySize:
+    Description: The amount of encrypted disk space, in GBs, allocated to store R-Studio user's local data.
+    Type: Number
+    Default: 20
+  InstanceType:
+    Type: String
+    Description: Instance type for the R-Studio server.
+    AllowedValues:
+      - t2.medium 
+      - t2.large 
+      - t2.xlarge 
+      - t2.2xlarge 
+      - t3.medium 
+      - t3.large 
+      - t3.xlarge 
+      - t3.2xlarge 
+      - m4.large 
+      - m4.xlarge 
+      - m4.2xlarge 
+      - m4.4xlarge 
+      - m4.10xlarge 
+      - m4.16xlarge 
+      - m5.large 
+      - m5.xlarge 
+      - m5.2xlarge 
+      - m5.4xlarge 
+      - m5.12xlarge 
+      - m5.24xlarge 
+      - c4.large 
+      - c4.xlarge 
+      - c4.2xlarge 
+      - c4.4xlarge 
+      - c4.8xlarge 
+      - c5.large 
+      - c5.xlarge 
+      - c5.2xlarge 
+      - c5.4xlarge 
+      - c5.9xlarge 
+      - c5.18xlarge
+      - r4.large 
+      - r4.xlarge 
+      - r4.2xlarge 
+      - r4.4xlarge 
+      - r4.8xlarge 
+      - r4.16xlarge
+      - r5.large 
+      - r5.xlarge 
+      - r5.2xlarge 
+      - r5.4xlarge 
+      - r5.8xlarge 
+      - r5.16xlarge 
+      - g2.2xlarge
+      - g2.8xlarge
+      - p2.xlarge
+      - p2.8xlarge
+      - p2.16xlarge
+      - g3.4xlarge
+      - g3.8xlarge
+      - g3.16xlarge
+    ConstraintDescription: Valid instance type in the t2, t3, m5, c5, r4, g2, p2, and g3 families
+    Default: t2.xlarge
+  UserList:
+    Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
+    Type: 'String'
+    NoEcho: true
+    Default: 'rstudio,yourRSTUDIOpassword1'
+  KeyPair:
+    Description: The EC2 Key Pair to use for the Atlas/WebAPI EC2 Instances.
+    Type: AWS::EC2::KeyPair::KeyName
+  RStudioInstanceProfile:
+    Type: String
+  RDSEndpoint: 
+    Type: String
+  RedshiftEndpoint: 
+    Type: String
+  EBEndpoint:
+    Description: "The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com)"
+    Type: String
+  DatabaseMasterPassword:
+    Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    ConstraintDescription: The Amazon RDS master password. Letters, numbers, spaces, and these special characters `~#$%^&*()_+,-
+  Sources:
+    Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9,])*$
+    Default: CMSDESynPUF1k,CMSDESynPUF23m
+  PatientLevelPredictionv:
+    Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.2'
+  CohortMethodv:
+    Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.6.2'
+  SqlRenderv:
+    Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.4.10'
+  DatabaseConnectorv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.1.0'
+  DatabaseConnectorJarsv:
+    Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  OhdsiRToolsv:
+    Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.5.3'
+  FeatureExtractionv:
+    Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.2'
+  Cyclopsv:
+    Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.3.1'
+  EmpiricalCalibrationv:
+    Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.3.6'
+  OhdsiSharingv:
+    Description: OHDSI OhdsiSharing GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.1.3'
+  Achillesv:
+    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.5.0'
+  MethodEvaluationv:
+    Description: OHDSI MethodEvalution GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.1'
+  Hydrav:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.0.4'
+  PredictionComparisonv:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  Eunomiav:
+    Description: OHDSI Eunomia GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.0.1'
+
+Mappings:
+  RegionMap:
+
+    cn-northwest-1:
+      AMI: ami-0f9c886d
+    cn-north-1:
+      AMI: ami-3d3ee150
+
+
+Resources:
+
+
+
+  RStudioInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+              /tmp/rdependencies.r:
+                content: !Sub |
+                  print("Testing to see if R dependency libraries are installed...")
+                  try(if("callr" %in% rownames(installed.packages()) == FALSE){install.packages("callr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("cli" %in% rownames(installed.packages()) == FALSE){install.packages("cli", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("digest" %in% rownames(installed.packages()) == FALSE){install.packages("digest", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("git2r" %in% rownames(installed.packages()) == FALSE){install.packages("git2r", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("httr" %in% rownames(installed.packages()) == FALSE){install.packages("httr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("jsonlite" %in% rownames(installed.packages()) == FALSE){install.packages("jsonlite", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("memoise" %in% rownames(installed.packages()) == FALSE){install.packages("memoise", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("pkgbuild" %in% rownames(installed.packages()) == FALSE){install.packages("pkgbuild", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("pkgload" %in% rownames(installed.packages()) == FALSE){install.packages("pkgload", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("processx" %in% rownames(installed.packages()) == FALSE){install.packages("processx", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("rcmdcheck" %in% rownames(installed.packages()) == FALSE){install.packages("rcmdcheck", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("remotes" %in% rownames(installed.packages()) == FALSE){install.packages("remotes", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("rstudioapi" %in% rownames(installed.packages()) == FALSE){install.packages("rstudioapi", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("sessioninfo" %in% rownames(installed.packages()) == FALSE){install.packages("sessioninfo", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("usethis" %in% rownames(installed.packages()) == FALSE){install.packages("usethis", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("withr" %in% rownames(installed.packages()) == FALSE){install.packages("withr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+
+                  try(if(("devtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("devtools") != "2.0.2")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/devtools_2.0.2.tar.gz", repos=NULL, type="source")})
+                  try(if(("remotes" %in% rownames(installed.packages()) == FALSE) || (packageVersion("remotes") != "2.0.4")){devtools::install_version("remotes", version = "2.0.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+
+                  try(if(("aws.signature" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.signature") != "0.5.0")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.signature_0.5.0.tar.gz", repos=NULL, type="source")})
+                  try(if(("aws.ec2metadata" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.ec2metadata") != "0.1.6")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.ec2metadata_0.1.6.tar.gz", repos=NULL, type="source")})
+                  try(if(("aws.s3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.s3") != "0.3.20")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.s3_0.3.20.tar.gz", repos=NULL, type="source")})
+                  try(if(("acepack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("acepack") != "1.4.1")){devtools::install_version("acepack", version = "1.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("askpass" %in% rownames(installed.packages()) == FALSE) || (packageVersion("askpass") != "1.1")){devtools::install_version("askpass", version = "1.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("assertthat" %in% rownames(installed.packages()) == FALSE) || (packageVersion("assertthat") != "0.2.1")){devtools::install_version("assertthat", version = "0.2.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("AUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("AUC") != "0.3.0")){devtools::install_version("AUC", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("backports" %in% rownames(installed.packages()) == FALSE) || (packageVersion("backports") != "1.1.4")){devtools::install_version("backports", version = "1.1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("base64enc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("base64enc") != "0.1-3")){devtools::install_version("base64enc", version = "0.1-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("BH" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BH") != "1.69.0-1")){devtools::install_version("BH", version = "1.69.0-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("bit" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bit") != "1.1-14")){devtools::install_version("bit", version = "1.1-14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("bitops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bitops") != "1.0-6")){devtools::install_version("bitops", version = "1.0-6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("caTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("caTools") != "1.17.1.2")){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("checkmate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("checkmate") != "1.9.3")){devtools::install_version("checkmate", version = "1.9.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("clipr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clipr") != "0.6.0")){devtools::install_version("clipr", version = "0.6.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("clisymbols" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clisymbols") != "1.2.0")){devtools::install_version("clisymbols", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("colorspace" %in% rownames(installed.packages()) == FALSE) || (packageVersion("colorspace") != "1.4-1")){devtools::install_version("colorspace", version = "1.4-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("config" %in% rownames(installed.packages()) == FALSE) || (packageVersion("config") != "0.3")){devtools::install_version("config", version = "0.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("crayon" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crayon") != "1.3.4")){devtools::install_version("crayon", version = "1.3.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("crosstalk" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crosstalk") != "1.0.0")){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("curl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("curl") != "3.3")){devtools::install_version("curl", version = "3.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("data.table" %in% rownames(installed.packages()) == FALSE) || (packageVersion("data.table") != "1.12.2")){devtools::install_version("data.table", version = "1.12.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("DBI" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DBI") != "1.0.0")){devtools::install_version("DBI", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("desc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("desc") != "1.2.0")){devtools::install_version("desc", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("diagram" %in% rownames(installed.packages()) == FALSE) || (packageVersion("diagram") != "1.6.4")){devtools::install_version("diagram", version = "1.6.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("doParallel" %in% rownames(installed.packages()) == FALSE) || (packageVersion("doParallel") != "1.0.14")){devtools::install_version("doParallel", version = "1.0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("dplyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("dplyr") != "0.8.1")){devtools::install_version("dplyr", version = "0.8.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("DT" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DT") != "0.7")){devtools::install_version("DT", version = "0.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("evaluate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("evaluate") != "0.14")){devtools::install_version("evaluate", version = "0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fansi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fansi") != "0.4.0")){devtools::install_version("fansi", version = "0.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fastmatch" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fastmatch") != "1.1-0")){devtools::install_version("fastmatch", version = "1.1-0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ff" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ff") != "2.2-14")){devtools::install_version("ff", version = "2.2-14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ffbase" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ffbase") != "0.12.7")){devtools::install_version("ffbase", version = "0.12.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("foreach" %in% rownames(installed.packages()) == FALSE) || (packageVersion("foreach") != "1.4.4")){devtools::install_version("foreach", version = "1.4.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("formatR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("formatR") != "1.7")){devtools::install_version("formatR", version = "1.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Formula" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Formula") != "1.2-3")){devtools::install_version("Formula", version = "1.2-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fs") != "1.3.1")){devtools::install_version("fs", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("functional" %in% rownames(installed.packages()) == FALSE) || (packageVersion("functional") != "0.6")){devtools::install_version("functional", version = "0.6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gdtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gdtools") != "0.1.9")){devtools::install_version("gdtools", version = "0.1.9", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("generics" %in% rownames(installed.packages()) == FALSE) || (packageVersion("generics") != "0.0.2")){devtools::install_version("generics", version = "0.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ggplot2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ggplot2") != "3.2.0")){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gh" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gh") != "1.0.1")){devtools::install_version("gh", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("glue" %in% rownames(installed.packages()) == FALSE) || (packageVersion("glue") != "1.3.1")){devtools::install_version("glue", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gridExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gridExtra") != "2.3")){devtools::install_version("gridExtra", version = "2.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gtable") != "0.3.0")){devtools::install_version("gtable", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("hexbin" %in% rownames(installed.packages()) == FALSE) || (packageVersion("hexbin") != "1.27.3")){devtools::install_version("hexbin", version = "1.27.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("highr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("highr") != "0.8")){devtools::install_version("highr", version = "0.8", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Hmisc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hmisc") != "4.2-0")){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmlTable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlTable") != "1.13.1")){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.3.6")){devtools::install_version("htmltools", version = "0.3.6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmlwidgets" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlwidgets") != "1.3")){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.5.0")){devtools::install_version("httpuv", version = "1.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ini" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ini") != "0.3.1")){devtools::install_version("ini", version = "0.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("iterators" %in% rownames(installed.packages()) == FALSE) || (packageVersion("iterators") != "1.0.10")){devtools::install_version("iterators", version = "1.0.10", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("itertools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("itertools") != "0.1-3")){devtools::install_version("itertools", version = "0.1-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("keras" %in% rownames(installed.packages()) == FALSE) || (packageVersion("keras") != "2.2.4.1")){devtools::install_version("keras", version = "2.2.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("knitr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("knitr") != "1.23")){devtools::install_version("knitr", version = "1.23", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("labeling" %in% rownames(installed.packages()) == FALSE) || (packageVersion("labeling") != "0.3")){devtools::install_version("labeling", version = "0.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("later" %in% rownames(installed.packages()) == FALSE) || (packageVersion("later") != "0.8.0")){devtools::install_version("later", version = "0.8.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("latticeExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("latticeExtra") != "0.6-28")){devtools::install_version("latticeExtra", version = "0.6-28", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("lazyeval" %in% rownames(installed.packages()) == FALSE) || (packageVersion("lazyeval") != "0.2.2")){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("magrittr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("magrittr") != "1.5")){devtools::install_version("magrittr", version = "1.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("mailR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mailR") != "0.4.1")){devtools::install_version("mailR", version = "0.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("markdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("markdown") != "1")){devtools::install_version("markdown", version = "1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("mime" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mime") != "0.7")){devtools::install_version("mime", version = "0.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("munsell" %in% rownames(installed.packages()) == FALSE) || (packageVersion("munsell") != "0.5.0")){devtools::install_version("munsell", version = "0.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("officer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("officer") != "0.3.5")){devtools::install_version("officer", version = "0.3.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("openssl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openssl") != "1.4")){devtools::install_version("openssl", version = "1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("openxlsx" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openxlsx") != "4.1.0.1")){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pack") != "0.1-1")){devtools::install_version("pack", version = "0.1-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ParallelLogger" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ParallelLogger") != "1.1.0")){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pillar" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pillar") != "1.4.1")){devtools::install_version("pillar", version = "1.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pkgconfig" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pkgconfig") != "2.0.2")){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plogr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plogr") != "0.2.0")){devtools::install_version("plogr", version = "0.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plotly" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plotly") != "4.9.0")){devtools::install_version("plotly", version = "4.9.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plyr") != "1.8.4")){devtools::install_version("plyr", version = "1.8.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("png" %in% rownames(installed.packages()) == FALSE) || (packageVersion("png") != "0.1-7")){devtools::install_version("png", version = "0.1-7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("prettyunits" %in% rownames(installed.packages()) == FALSE) || (packageVersion("prettyunits") != "1.0.2")){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pROC") != "1.15.0")){devtools::install_version("pROC", version = "1.15.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.0.1")){devtools::install_version("promises", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("PRROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PRROC") != "1.3.1")){devtools::install_version("PRROC", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.3.0")){devtools::install_version("ps", version = "1.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("purrr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("purrr") != "0.3.2")){devtools::install_version("purrr", version = "0.3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("PythonInR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PythonInR") != "0.1-4")){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.methodsS3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.methodsS3") != "1.7.1")){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.oo" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.oo") != "1.22.0")){devtools::install_version("R.oo", version = "1.22.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.utils" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.utils") != "2.9.0")){devtools::install_version("R.utils", version = "2.9.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R6" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R6") != "2.4.0")){devtools::install_version("R6", version = "2.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RColorBrewer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RColorBrewer") != "1.1-2")){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Rcpp" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Rcpp") != "1.0.1")){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RcppEigen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RcppEigen") != "0.3.3.5.0")){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RCurl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RCurl") != "1.95-4.12")){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ReporteRs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRs") != "0.8.10")){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ReporteRsjars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRsjars") != "0.0.4")){devtools::install_version("ReporteRsjars", version = "0.0.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("reshape2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reshape2") != "1.4.3")){devtools::install_version("reshape2", version = "1.4.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("reticulate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reticulate") != "1.12")){devtools::install_version("reticulate", version = "1.12", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rJava" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rJava") != "0.9-11")){devtools::install_version("rJava", version = "0.9-11", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rjson" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rjson") != "0.2.20")){devtools::install_version("rjson", version = "0.2.20", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RJSONIO" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RJSONIO") != "1.3-1.2")){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rlang" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rlang") != "0.4.0")){devtools::install_version("rlang", version = "0.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rmarkdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rmarkdown") != "1.13")){devtools::install_version("rmarkdown", version = "1.13", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rprojroot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rprojroot") != "1.3-2")){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rvg" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rvg") != "0.2.1")){devtools::install_version("rvg", version = "0.2.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("scales" %in% rownames(installed.packages()) == FALSE) || (packageVersion("scales") != "1.0.0")){devtools::install_version("scales", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shape" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shape") != "1.4.4")){devtools::install_version("shape", version = "1.4.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shiny" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shiny") != "1.3.2")){devtools::install_version("shiny", version = "1.3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shinycssloaders" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinycssloaders") != "0.2.0")){devtools::install_version("shinycssloaders", version = "0.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shinydashboard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinydashboard") != "0.7.1")){devtools::install_version("shinydashboard", version = "0.7.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("slam" %in% rownames(installed.packages()) == FALSE) || (packageVersion("slam") != "0.1-45")){devtools::install_version("slam", version = "0.1-45", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("snow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("snow") != "0.4-3")){devtools::install_version("snow", version = "0.4-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("sourcetools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sourcetools") != "0.1.7")){devtools::install_version("sourcetools", version = "0.1.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("stringi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringi") != "1.4.3")){devtools::install_version("stringi", version = "1.4.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("stringr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringr") != "1.4.0")){devtools::install_version("stringr", version = "1.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("survAUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("survAUC") != "1.0-5")){devtools::install_version("survAUC", version = "1.0-5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("sys" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sys") != "3.2")){devtools::install_version("sys", version = "3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tensorflow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tensorflow") != "1.13.1")){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tfruns" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tfruns") != "1.4")){devtools::install_version("tfruns", version = "1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tibble" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tibble") != "2.1.3")){devtools::install_version("tibble", version = "2.1.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tidyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyr") != "0.8.3")){devtools::install_version("tidyr", version = "0.8.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tidyselect" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyselect") != "0.2.5")){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tinytex" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tinytex") != "0.14")){devtools::install_version("tinytex", version = "0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("triebeard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("triebeard") != "0.3.0")){devtools::install_version("triebeard", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("urltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("urltools") != "1.7.3")){devtools::install_version("urltools", version = "1.7.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("utf8" %in% rownames(installed.packages()) == FALSE) || (packageVersion("utf8") != "1.1.4")){devtools::install_version("utf8", version = "1.1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("uuid" %in% rownames(installed.packages()) == FALSE) || (packageVersion("uuid") != "0.1-2")){devtools::install_version("uuid", version = "0.1-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("vctrs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("vctrs") != "0.1.0")){devtools::install_version("vctrs", version = "0.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("viridis" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridis") != "0.5.1")){devtools::install_version("viridis", version = "0.5.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("viridisLite" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridisLite") != "0.3.0")){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("whisker" %in% rownames(installed.packages()) == FALSE) || (packageVersion("whisker") != "0.3-2")){devtools::install_version("whisker", version = "0.3-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xfun" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xfun") != "0.8")){devtools::install_version("xfun", version = "0.8", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xgboost" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xgboost") != "0.6.4.1")){devtools::install_version("xgboost", version = "0.6.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("XML" %in% rownames(installed.packages()) == FALSE) || (packageVersion("XML") != "3.98-1.20")){devtools::install_version("XML", version = "3.98-1.20", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xml2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xml2") != "1.2.0")){devtools::install_version("xml2", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xopen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xopen") != "1.0.0")){devtools::install_version("xopen", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xtable") != "1.8-4")){devtools::install_version("xtable", version = "1.8-4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("yaml" %in% rownames(installed.packages()) == FALSE) || (packageVersion("yaml") != "2.2.0")){devtools::install_version("yaml", version = "2.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("zeallot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("zeallot") != "0.1.0")){devtools::install_version("zeallot", version = "0.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                mode: 000664
+                owner: root
+                group: root
+              /etc/init/jupyter-server.conf:
+                content: |
+                  # rserver - RStudio main gateway process
+                  #
+                  #
+                  # upstart docs: http://upstart.ubuntu.com/getting-started.html
+                  #               http://manpages.ubuntu.com/manpages/karmic/man5/init.5.html
+                  #
+                  # (note that embedding a script and pre-start and post-start actions are supported)
+                  #
+
+                  start on runlevel [2345]
+                  stop on runlevel [!2345]
+
+                  expect fork
+
+                  respawn
+
+                  # run the server
+                  exec /usr/local/bin/jupyterhub --port=80 --Spawner.default_url='/lab'
+                mode: 000644
+                owner: root
+                group: root                
+    Properties:
+      IamInstanceProfile: !Ref RStudioInstanceProfile
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref 'KeyPair'
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      SecurityGroupIds: 
+        - !Ref RStudioSecurityGroup
+      SubnetId: !Ref VPCSubnet 
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-RStudio"
+      BlockDeviceMappings: 
+          - DeviceName: "/dev/xvda"
+            Ebs: 
+              VolumeType: "gp2"
+              DeleteOnTermination: "true"
+              VolumeSize: 50
+          - DeviceName: "/dev/sdm"
+            Ebs: 
+              VolumeType: "gp2"
+              DeleteOnTermination: "true"
+              Encrypted: "true"
+              VolumeSize: !Ref HomeDirectorySize
+      UserData:
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          RSTUDIO_URL="https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/rstudio-server-rhel-1.2.1335-x86_64.rpm"
+          SHINY_URL="https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/shiny-server-1.5.9.923-x86_64.rpm"
+          RSTUDIOPORT=8787
+          users="${UserList}"
+          MIN_USER_ID=400 
+          export SOURCES=${Sources}
+
+          aws configure set default.region cn-northwest-1
+          # Install SSM client
+          yum install -y https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
+          
+          #Use cfn-init to grab and apply the files specified in the above UserData
+          /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource RStudioInstance --region ${AWS::Region}
+
+          sudo mkfs -t ext4 /dev/sdm
+          mkdir /mnt/tmp
+          sudo mount /dev/sdm /mnt/tmp
+          cp -a /home/. /mnt/tmp
+          umount /dev/sdm
+          mount /dev/sdm /home
+          echo "/dev/sdm /home ext4 defaults,nofail 0 2" >> /etc/fstab
+
+          yum erase -y java-1.7.0-openjdk java-1.7.0-openjdk-devel
+          yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
+
+          export MAKE='make -j 8'
+          sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
+          sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
+          if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
+            sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
+          fi
+          if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
+            sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
+          fi
+
+          mkdir /mnt/r-stuff
+          cd /mnt/r-stuff
+
+          pushd .
+          mkdir R-latest
+          cd R-latest
+          wget https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/R-3.5.3.tar.gz
+          tar -xzf R-3.5.3.tar.gz
+          #Trying out Python
+          sudo yum install -y python36 python36-devel python36-pip
+          sudo yum install -y gcc gcc-c++ gcc-gfortran
+          sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+          cd R-3*
+          ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
+          make -j 8
+          sudo make install
+          sudo su << BASH_SCRIPT
+          echo 'export PATH=${!PWD}/bin:$PATH' >> /etc/profile
+          BASH_SCRIPT
+          popd
+
+          sudo sed -i 's/make/make -j 8/g' /usr/lib64/R/etc/Renviron
+
+          # set unix environment variables
+          sudo su << BASH_SCRIPT
+          echo '
+          export JAVA_HOME=/etc/alternatives/jre
+          ' >> /etc/profile
+          BASH_SCRIPT
+          sudo sh -c "source /etc/profile"
+
+          # fix java binding - R and packages have to be compiled with the same java version as hadoop
+          sudo R CMD javareconf
+
+
+          RSTUDIO_FILE=$(basename $RSTUDIO_URL)
+          wget $RSTUDIO_URL
+          sudo yum install --nogpgcheck -y $RSTUDIO_FILE
+          # change port - 8787 will not work for many companies
+          sudo sh -c "echo 'www-port=$RSTUDIOPORT' >> /etc/rstudio/rserver.conf"
+          sudo sh -c "echo 'auth-minimum-user-id=$MIN_USER_ID' >> /etc/rstudio/rserver.conf"
+          sudo perl -p -i -e "s/= 5../= 100/g" /etc/pam.d/rstudio
+          sudo rstudio-server stop || true
+          sudo rstudio-server start
+
+          #Grab R binaries   
+          cd /usr/lib64/R/library
+          aws s3 cp s3://ohdsi-sample-data/ohdsi-rdependencies-3.5.3.tar.gz .
+          tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
+
+          #Install R dependencies if any of the specified versions differ
+          sudo Rscript /tmp/rdependencies.r
+
+          SHINY_FILE=$(basename $SHINY_URL)
+          wget $SHINY_URL
+          sudo yum install --nogpgcheck -y $SHINY_FILE
+
+          #sudo R --no-save <<R_SCRIPT
+          #install.packages(c('shiny','rmarkdown'), repos="http://cran.rstudio.com")
+          #R_SCRIPT
+
+          # Install Jupyter
+          export PATH=$PATH:/usr/local/bin
+          echo "127.0.0.1  `hostname`"  >> /etc/hosts
+          sudo yum install -y nodejs npm --enablerepo=epel
+          npm config set strict-ssl false
+          pip-3.6 install jupyterhub -i https://pypi.tuna.tsinghua.edu.cn/simple
+          npm --registry https://registry.npm.taobao.org install -g configurable-http-proxy
+          pip-3.6 install "ipython[notebook]" -i https://pypi.tuna.tsinghua.edu.cn/simple
+          pip-3.6 install jupyterlab -i https://pypi.tuna.tsinghua.edu.cn/simple
+          jupyter serverextension enable --py jupyterlab
+          # fix jupyter-client has to be installed but jupyter kernelspec –version exited with code 127 issue
+          sudo ln -s /usr/local/bin/jupyter /usr/bin/jupyter
+
+
+          R --no-save << R_SCRIPT
+          install.packages('IRkernel', repos = "http://mirror.lzu.edu.cn/CRAN") 
+          IRkernel::installspec(user = FALSE)
+          R_SCRIPT
+
+          sudo initctl start jupyter-server
+
+          sudo yum install -y cairo-devel
+          sudo yum install -y python-scipy
+          sudo pip install scipy -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip install sklearn -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip --no-cache-dir install torch torchvision -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip install boto3==1.7.52 -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip install sagemaker -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip install mxnet -i https://pypi.tuna.tsinghua.edu.cn/simple
+          sudo pip install pandas -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+
+          # Set site-wide grDevices 'bitmap' type to 'cairo' to enable the correct generation of PNG images
+          sudo echo "options(bitmapType=\"cairo\")
+          " > /usr/lib64/R/etc/Rprofile.site
+
+          # Install all of the OHDSI R Libraries
+          #sudo R --no-save << R_SCRIPT
+          #install.packages('testthat', repos = "http://mirror.lzu.edu.cn/CRAN") 
+          #install.packages('devtools', repos = "http://mirror.lzu.edu.cn/CRAN")     
+          #library(devtools)
+          #try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", version = "${SqlRenderv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          #try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", version = "${DatabaseConnectorv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          #try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "v${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          #try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
+          #try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
+          #try(if(("FeatureExtraction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("FeatureExtraction") != "${FeatureExtractionv}")){devtools::install_github("ohdsi/FeatureExtraction", ref = "v${FeatureExtractionv}", upgrade = "never")})
+          #try(if(("Cyclops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Cyclops") != "${Cyclopsv}")){devtools::install_version("Cyclops", version = "${Cyclopsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          #try(if("BigKnn" %in% rownames(installed.packages()) == FALSE){devtools::install_github("ohdsi/BigKnn", upgrade = "never")})
+          #try(if(("CohortMethod" %in% rownames(installed.packages()) == FALSE) || (packageVersion("CohortMethod") != "${CohortMethodv}")){devtools::install_github("ohdsi/CohortMethod", ref = "v${CohortMethodv}", upgrade = "never")})
+          #try(if(("EmpiricalCalibration" %in% rownames(installed.packages()) == FALSE) || (packageVersion("EmpiricalCalibration") != "${EmpiricalCalibrationv}")){devtools::install_version("EmpiricalCalibration", version = "${EmpiricalCalibrationv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          #try(if(("OhdsiSharing" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiSharing") != "${OhdsiSharingv}")){devtools::install_github("ohdsi/OhdsiSharing", ref = "v${OhdsiSharingv}", upgrade = "never")})
+          #try(if(("MethodEvaluation" %in% rownames(installed.packages()) == FALSE) || (packageVersion("MethodEvaluation") != "${MethodEvaluationv}")){devtools::install_github("ohdsi/MethodEvaluation", ref = "v${MethodEvaluationv}", upgrade = "never")})
+          #try(if(("Hydra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hydra") != "${Hydrav}")){devtools::install_github("ohdsi/Hydra", ref = "v${Hydrav}", upgrade = "never")})
+          #try(if(("PatientLevelPrediction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PatientLevelPrediction") != "${PatientLevelPredictionv}")){devtools::install_github("ohdsi/PatientLevelPrediction", ref = "v${PatientLevelPredictionv}", upgrade = "never")})
+          #try(if(("PredictionComparison" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PredictionComparison") != "${PredictionComparisonv}")){devtools::install_github("ohdsi/PredictionComparison", ref = "v${PredictionComparisonv}", upgrade = "never")})
+          #try(if(("Eunomia" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Eunomia") != "${Eunomiav}")){devtools::install_github("ohdsi/Eunomia", ref = "v${Eunomiav}", upgrade = "never")})
+          #R_SCRIPT
+
+          region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`
+          count=1
+          for i in $(echo $users | sed "s/,/ /g")
+          do
+              if [ `expr $count % 2` -eq "1" ]; then
+                username=$i
+                let count+=1
+                continue
+              else
+                sudo adduser $username
+                sudo sh -c "echo '$i' | passwd --stdin $username"
+                sudo -u $username mkdir /home/$username/.aws
+                sudo -u $username bash -c 'echo "[default]
+          region = '$region'" > /home/'$username'/.aws/config'
+
+                sudo -u $username bash -c 'mkdir ~/fftemp'
+                sudo -u $username bash -c 'mkdir ~/myResults'
+
+                sudo -u $username bash -c 'echo "#Connection string for the OMOP database on Redshift
+          connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"redshift\",
+          server = \"${RedshiftEndpoint}/mycdm\",
+          user = \"master\",
+          password = \"${DatabaseMasterPassword}\",
+          port = \"5439\")
+
+          #Connection string for the WebAPI database on RDS Aurora PostgreSQL
+          connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
+          server = \"${RDSEndpoint}/OHDSI?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory\",
+          user = \"ohdsi_admin_user\",
+          password = \"${DatabaseMasterPassword}\",
+          port = \"5432\")
+
+          options(fftempdir = \"~/fftemp\")
+          outputFolder <- \"myResults\"
+                " > /home/'$username'/ConnectionDetails.R'
+                
+
+
+                for i in $(echo $SOURCES | sed "s/,/ /g")
+                do
+                  sudo -u $username bash -c 'echo "cdmDatabaseSchema <- \"'$i'\"
+          cohortDatabaseSchema <- \"'$i'results\"
+                  " >> /home/'$username'/ConnectionDetails.R'
+                done
+
+                # add the first users in the list to the sudoers file.
+                if [ "$count" = "2" ]; then
+                  echo "$username  ALL=(ALL:ALL) ALL" >> /etc/sudoers
+                fi
+
+                let count+=1
+              fi
+          done
+  RStudioTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: RStudioInstance
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '20'
+      Targets:
+      - Id: !Ref 'RStudioInstance'
+        Port: 8787
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VPCId
+
+  JupyterTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: RStudioInstance
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '20'
+      Targets:
+      - Id: !Ref 'RStudioInstance'
+        Port: 80
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VPCId
+
+  
+Outputs:
+  RStudioTargetGroupArn:
+    Value: !Ref RStudioTargetGroup
+  JupyterTargetGroupArn:
+    Value: !Ref JupyterTargetGroup

@@ -1,0 +1,1685 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This CloudFormation Template deploys a complete OHDSI environment.  It
+  depends on the OHDSI-VPC CloudFormation Template.
+
+
+
+Parameters:
+  WebAsgMax:
+    AllowedPattern: ^((?!0$)[1-2]?[0-9]|30)$
+    ConstraintDescription: Must be a number between 1 and 30.
+    Default: 1
+    Description: Specifies the maximum number of EC2 instances in the Web Autoscaling Group.
+    Type: String
+  WebAsgMin:
+    AllowedPattern: ^([0-0]?[0-9]|10)$
+    ConstraintDescription: Must be a number between 0 and 10.
+    Default: 1
+    Description: Specifies the minimum number of EC2 instances in the Web Autoscaling Group.
+    Type: String
+  WebPort:
+    Description: 'By default, China blocks inbound access to common ports like 80, 8080, and 443.  If you need to use these ports, there is an exception process.'
+    Type: Number
+    MaxValue: 65535
+    MinValue: 1
+    Default: 3389
+  WebInstanceType:
+    AllowedValues:
+      - t2.micro 
+      - t2.small 
+      - t2.medium 
+      - t2.large 
+      - t2.xlarge 
+      - t2.2xlarge 
+      - t3.micro 
+      - t3.small 
+      - t3.medium 
+      - t3.large 
+      - t3.xlarge 
+      - t3.2xlarge 
+      - m4.large 
+      - m4.xlarge 
+      - m4.2xlarge 
+      - m5.large 
+      - m5.xlarge 
+      - m5.2xlarge 
+      - c4.large 
+      - c4.xlarge 
+      - c4.2xlarge 
+      - c5.large 
+      - c5.xlarge 
+      - c5.2xlarge 
+      - r4.large 
+      - r4.xlarge 
+      - r5.large 
+      - r5.xlarge 
+    ConstraintDescription: Must be a valid Amazon EC2 instance type.
+    Default: t2.micro
+    Description: The Amazon EC2 instance type for your web instances.
+    Type: String
+  SslCertificate:
+    Type: String
+    Description: "AWS ARN to ACM generated SSL certificate." 
+  EBEndpoint:
+    Description: "The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com)"
+    Type: String
+  UseRoute53Boolean:
+    AllowedValues:
+      - true
+      - false
+    Default: true
+    Description: Specifies whether a record set should be created in Route 53 for your OHDSI domain name.  If not, you will recieve a default Elastic Beanstalk DNS name (e.g. ohdsi.us-east-1.elasticbeanstalk.com).
+    Type: String
+  UseACMBoolean:
+    AllowedValues:
+      - true
+      - false
+    Default: true
+    Description: Specifies whether an SSL certificate should be generated for your domain name using AWS Certificate Manager (ACM).  If one is not generated, HTTP will be used and an SSL certificate can be applied after deployment.
+    Type: String
+  HostedZoneName:
+    Type: String
+    Description: "The hosted zone that will be used by your application.  If using the Elastic Beanstalk provided hosted zone in us-east-1, just accept the default value."
+    Default: us-east-1.elasticbeanstalk.com
+  DomainName:
+    AllowedPattern: ^$|(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+    Description: '[ Optional, only if using Route53 ] The sub-domain name of the OHDSI site.  This sub-domain will be prepended your specified Hosted Zone (e.g. ohdsi in ohdsi.example.edu).'
+    Type: String
+  DatabaseMasterPassword:
+    Description: Must be letters (upper or lower), numbers, spaces, and these special characters `~#$%^&*()_+,-
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    ConstraintDescription: The Amazon RDS master password. Letters, numbers, spaces, and these special characters `~#$%^&*()_+,-
+  Sources:
+    Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9,])*$
+    Default: CMSDESynPUF1k,CMSDESynPUF23m
+  SourcesBucket:
+    Description: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    Default: ohdsi-sample-data  
+  OMOPv:
+    Description: The OHDSI CommonDataModel GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v5.3.1'
+  Atlasv:
+    Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.7.1'
+  WebAPIv:
+    Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.7.1'
+  Achillesv:
+    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.5.0'
+  OhdsiRToolsv:
+    Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.5.3'
+  SqlRenderv:
+    Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.4.10'
+  DatabaseConnectorv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v2.1.0'
+  DatabaseConnectorJarsv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: 'v1.0.0'
+  EC2KeyName:
+    Description: The EC2 Key Pair to use for the Atlas/WebAPI EC2 Instances.
+    Type: AWS::EC2::KeyPair::KeyName
+  PrivateDeployment:
+    Type: String
+    Description: "Is this going to be a private network deployment of OHDSI?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: false
+  AtlasSecurity:
+    Type: String
+    Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: false
+  ExampleStudies:
+    Type: String
+    Description: "Include example studies in Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true 
+  UserList:
+    Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
+    Type: 'String'
+    NoEcho: true
+
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  SubnetPublicA:
+    Type: AWS::EC2::Subnet::Id
+  SubnetPublicB:
+    Type: AWS::EC2::Subnet::Id
+  SubnetAppA:
+    Type: AWS::EC2::Subnet::Id
+  SubnetAppB:
+    Type: AWS::EC2::Subnet::Id
+  SGPublic:
+    Type: AWS::EC2::SecurityGroup::Id
+  SGApp:
+    Type: AWS::EC2::SecurityGroup::Id
+  EBServiceRole:
+    Type: String
+  EBInstanceProfile:
+    Type: String
+  TempEC2InstanceProfile:
+    Type: String
+  RStudioTargetGroupArn:
+    Type: String
+  JupyterTargetGroupArn:
+    Type: String
+  RDSEndpoint: 
+    Type: String
+  RedshiftEndpoint: 
+    Type: String
+  EBBucket:
+    Type: String
+    Description: 'S3 Bucket used to store the application package for Elastic Beanstalk.'
+  RSRoleArn:
+    Type: String
+
+
+#Mapping to find the Amazon Linux AMI in each region.  This AMI is used for the temporary EC2 server.
+Mappings:
+  RegionMap:
+    cn-northwest-1:
+      AMI: ami-915d4af3
+    cn-north-1:
+      AMI: ami-f8d00995
+
+  
+  tomcatconfig:
+    t2.micro:
+      Xmx: 512m
+    t2.small:
+      Xmx: 1024m
+    t2.medium: 
+      Xmx: 2048m
+    t2.large:
+      Xmx: 4096m
+    t2.xlarge:
+      Xmx: 8192m
+    t2.2xlarge:
+      Xmx: 16384m
+    t3.micro:
+      Xmx: 512m
+    t3.small:
+      Xmx: 1024m
+    t3.medium:
+      Xmx: 2048m
+    t3.large:
+      Xmx: 4096m
+    t3.xlarge:
+      Xmx: 8192m
+    t3.2xlarge:
+      Xmx: 16384m
+    m4.large:
+      Xmx: 4096m
+    m4.xlarge:
+      Xmx: 8192m
+    m4.2xlarge:
+      Xmx: 16384m
+    m5.large:
+      Xmx: 4096m
+    m5.xlarge:
+      Xmx: 8192m
+    m5.2xlarge:
+      Xmx: 16384m
+    c4.large:
+      Xmx: 2048m
+    c4.xlarge:
+      Xmx: 4096m
+    c4.2xlarge:
+      Xmx: 8192m
+    c5.large:
+      Xmx: 2048m
+    c5.xlarge:
+      Xmx: 4096m
+    c5.2xlarge:
+      Xmx: 8192m
+    r4.large:
+      Xmx: 8192m
+    r4.xlarge:
+      Xmx: 16384m
+    r5.large:
+      Xmx: 8192m
+    r5.xlarge:
+      Xmx: 16384m
+
+
+Conditions:
+  DeployRoute53: 
+    !Equals [ true, !Ref UseRoute53Boolean ]
+  PrivateDeploy: 
+    !Equals [ true, !Ref PrivateDeployment ]
+  DeployACM: !And 
+    - !Equals [ true, !Ref UseACMBoolean ]
+    - !Condition DeployRoute53
+  NotDeployACM: !Or
+    - !Equals [ false, !Ref UseACMBoolean ]
+    - !Equals [ false, !Ref UseRoute53Boolean ]
+
+
+Resources:
+
+# Defines the Elastic Beanstalk environment that deploys the load balancer and Atlas/WebAPI Tomcat servers in an auto-scaling group.
+  OHDSIApp:
+    Type: 'AWS::ElasticBeanstalk::Application'
+    DependsOn: EC2WaitCondition
+    Description: OHDSI Atlas and WebAPI
+    Properties:
+      ApplicationVersions:
+        - Description: Version 1.0
+          SourceBundle:
+            S3Bucket: !Ref EBBucket
+            S3Key: ohdsi-webapi-atlas.zip
+          VersionLabel: Initial Version
+  OHDSIEnvironmentACM:
+    Type: 'AWS::ElasticBeanstalk::Environment'
+    Condition: DeployACM
+    DependsOn: EC2WaitCondition
+    Properties:
+      ApplicationName: !Ref OHDSIApp
+      Description: Elastic Beanstalk deployment of Atlas / WebAPI
+      SolutionStackName: !Select [1, !Split ['"', !Select [0, !Split ['}', !Select [1, !Split [':', !GetAtt 'EC2WaitCondition.Data']]]]]]
+      VersionLabel: Initial Version
+      EnvironmentName: !Ref EBEndpoint
+      CNAMEPrefix: !Ref EBEndpoint
+      Tier:
+        Name: WebServer
+        Type: Standard
+        Version: ' '
+      OptionSettings:
+        - Namespace: 'aws:autoscaling:launchconfiguration'
+          OptionName: IamInstanceProfile
+          Value: !Ref EBInstanceProfile 
+        - Namespace: 'aws:elasticbeanstalk:environment'
+          OptionName: ServiceRole
+          Value: !Ref EBServiceRole        
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: !Ref WebAsgMin
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: !Ref WebAsgMax
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: !Ref 'EC2KeyName'
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref WebInstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref SGApp
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SSHSourceRestriction
+          Value: 'tcp, 22, 22, 127.0.0.1/32'
+        - Namespace: aws:autoscaling:trigger
+          OptionName: MeasureName
+          Value: CPUUtilization
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Unit
+          Value: Percent
+        - Namespace: aws:autoscaling:trigger
+          OptionName: UpperThreshold
+          Value: '80'
+        - Namespace: aws:autoscaling:trigger
+          OptionName: LowerThreshold
+          Value: '20'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: MaxBatchSize
+          Value: '1'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: MinInstancesInService
+          Value: '0'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: RollingUpdateEnabled
+          Value: 'true'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: RollingUpdateType
+          Value: Health
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: 'false'
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBScheme
+          Value: !If [ PrivateDeploy, 'internal', 'public' ]      
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetPublicA
+              - !Ref SubnetPublicB
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetAppA
+              - !Ref SubnetAppB
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPCId
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: DeploymentPolicy
+          Value: Rolling
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application
+          OptionName: 'Application Healthcheck URL'
+          Value: '/WebAPI/info'
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: IdleTimeout
+          Value: 240
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: SecurityGroups
+          Value: !Ref SGPublic
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: ManagedSecurityGroup
+          Value: !Ref SGPublic
+        - Namespace: aws:elbv2:listener:default
+          OptionName: ListenerEnabled
+          Value: false
+        - Namespace: aws:elbv2:listener:443
+          OptionName: DefaultProcess
+          Value: https
+        - Namespace: aws:elbv2:listener:443
+          OptionName: Protocol
+          Value: HTTPS
+        - Namespace: aws:elbv2:listener:443
+          OptionName: SSLCertificateArns
+          Value: !Ref SslCertificate
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: Port
+          Value: 443
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: Protocol
+          Value: HTTPS          
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: StickinessEnabled
+          Value: true  
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:container:tomcat:jvmoptions
+          OptionName: Xmx
+          Value: !FindInMap [tomcatconfig, !Ref WebInstanceType, Xmx]    
+
+
+  OHDSIEnvironmentNoACM:
+    Type: 'AWS::ElasticBeanstalk::Environment'
+    Condition: NotDeployACM
+    DependsOn: EC2WaitCondition
+    Properties:
+      ApplicationName: !Ref OHDSIApp
+      Description: OHDSI Atlas and WebAPI
+      SolutionStackName: !Select [1, !Split ['"', !Select [0, !Split ['}', !Select [1, !Split [':', !GetAtt 'EC2WaitCondition.Data']]]]]]
+      VersionLabel: Initial Version
+      EnvironmentName: !Ref EBEndpoint
+      CNAMEPrefix: !Ref EBEndpoint
+      Tier:
+        Name: WebServer
+        Type: Standard
+        Version: ' '
+      OptionSettings:
+        - Namespace: 'aws:autoscaling:launchconfiguration'
+          OptionName: IamInstanceProfile
+          Value: !Ref EBInstanceProfile 
+        - Namespace: 'aws:elasticbeanstalk:environment'
+          OptionName: ServiceRole
+          Value: !Ref EBServiceRole        
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: !Ref WebAsgMin
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: !Ref WebAsgMax
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: !Ref 'EC2KeyName'
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref WebInstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref SGApp
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SSHSourceRestriction
+          Value: 'tcp, 22, 22, 127.0.0.1/32'
+        - Namespace: aws:autoscaling:trigger
+          OptionName: MeasureName
+          Value: CPUUtilization
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Unit
+          Value: Percent
+        - Namespace: aws:autoscaling:trigger
+          OptionName: UpperThreshold
+          Value: '80'
+        - Namespace: aws:autoscaling:trigger
+          OptionName: LowerThreshold
+          Value: '20'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: MaxBatchSize
+          Value: '1'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: MinInstancesInService
+          Value: '0'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: RollingUpdateEnabled
+          Value: 'true'
+        - Namespace: aws:autoscaling:updatepolicy:rollingupdate
+          OptionName: RollingUpdateType
+          Value: Health
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: 'false'
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBScheme
+          Value: !If [ PrivateDeploy, 'internal', 'public' ]
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetPublicA
+              - !Ref SubnetPublicB
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetAppA
+              - !Ref SubnetAppB
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPCId
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: DeploymentPolicy
+          Value: Rolling
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application
+          OptionName: 'Application Healthcheck URL'
+          Value: '/WebAPI/info'
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: IdleTimeout
+          Value: 240
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: SecurityGroups
+          Value: !Ref SGPublic
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: ManagedSecurityGroup
+          Value: !Ref SGPublic
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: StickinessEnabled
+          Value: true 
+        - Namespace: !Join ['', ['aws:elbv2:listener:', !Ref WebPort]]
+          OptionName: DefaultProcess
+          Value: https
+        - Namespace: !Join ['', ['aws:elbv2:listener:', !Ref WebPort]]
+          OptionName: Protocol
+          Value: HTTP     
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: Port
+          Value: 443
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: Protocol
+          Value: HTTPS
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: StickinessEnabled
+          Value: true
+        - Namespace: aws:elasticbeanstalk:environment:process:https
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: '/WebAPI/info'
+        - Namespace: aws:elasticbeanstalk:container:tomcat:jvmoptions
+          OptionName: Xmx
+          Value: !FindInMap [tomcatconfig, !Ref WebInstanceType, Xmx]    
+
+
+# This is a temporary EC2 server used to add the necessary Elastic Beanstalk scripts to the Project REDCap source code zip file.
+  TempEC2Instance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+              /etc/awslogs/awslogs.conf:
+                content: !Sub 
+                  - |
+                    [general]
+                    state_file = /var/lib/awslogs/agent-state        
+                    
+                    [ohdsi-build-log]
+                    file = /var/log/cloud-init-output.log
+                    log_group_name = ohdsi-temporary-ec2-instance-build-log
+                    log_stream_name = ${EB}-build-log
+                  - { EB: !Ref EBEndpoint }
+                mode: 000664
+                owner: root
+                group: root
+              /etc/awslogs/awscli.conf:
+                content: !Sub |
+                  [plugins]
+                  cwlogs = cwlogs
+                  [default]
+                  region = ${AWS::Region}
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/config_ohdsi.sh:
+                content: |
+                  #  This script configures the CFN deployed environment for OHDSI WebAPI and Atlas
+                  #
+                  #  Requirements: 
+                  #  $RDS_ENDPOINT must contain the endpoint of the Postgres Aurora RDS environment to be used to store the WebAPI application data
+                  #  $EB_ENDPOINT must contain the endpoint of the Elastic Beanstalk Tomcat environment
+                  #  $REDSHIFT_ENDPOINT must contain the endpoint of the Redshift Cluster used for OMOP CDM and Vocabulary
+                  #  $ACCT_ID must contain the AWS Account ID for the account in which this environment is being deployed
+                  #  $BUCKET_NAME must contain the s3 bucket name in which Elastic Beanstalk will look for the ohdsi-webapi-atlas.zip file
+                  #  $DATABASE_PASSWORD must contain the password that was used for the master accounts for Redshift and RDS Aurora Postgres
+
+                  echo "RDS_ENDPOINT=" $RDS_ENDPOINT
+                  echo "EB_ENDPOINT=" $EB_ENDPOINT
+                  echo "REDSHIFT_ENDPOINT=" $REDSHIFT_ENDPOINT
+                  echo "ACCT_ID=" $ACCT_ID
+                  echo "BUCKET_NAME=" $BUCKET_NAME
+                  echo "DATABASE_PASSWORD=" $DATABASE_PASSWORD
+                  echo "OHDSIADMINUSERPWHASH=" $OHDSIADMINUSERPWHASH
+                  echo "OHDSIAPPUSERPWHASH=" $OHDSIAPPUSERPWHASH
+                  export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
+                  
+                  aws s3 mb s3://$BUCKET_NAME
+
+                  sudo yum install -y nodejs npm --enablerepo=epel
+                  sudo yum install -y postgresql
+
+                  export PGPASSWORD=$DATABASE_PASSWORD
+                  sed -i 's!OHDSIADMINUSERPWHASH!'$OHDSIADMINUSERPWHASH'!' postgres_init_master.sql
+                  sed -i 's!OHDSIAPPUSERPWHASH!'$OHDSIAPPUSERPWHASH'!' postgres_init_master.sql
+                  sed -i 's!OHDSISECURITYPWHASH!'$OHDSISECURITYPWHASH'!' postgres_init_master.sql
+                  psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U master -a -f postgres_init_master.sql 
+                  psql -d postgres --host=$RDS_ENDPOINT --port=5432 -U ohdsi_admin_user -a -f postgres_init_ohdsi.sql
+
+                  #Download build tools and compile WebAPI
+                  curl -o- https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/install.sh | bash
+                  export NVM_DIR="/root/.nvm"
+                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                  #Use taobao npm mirror
+                  NVM_NODEJS_ORG_MIRROR=https://npm.taobao.org/mirrors/node	
+                  nvm install 11.11.0
+                  sudo yum install -y https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/apache-maven-3.5.2-1.el6.noarch.rpm
+                  sudo wget https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/settings.xml -O /etc/maven/settings.xml
+                  sudo yum install -y java-1.8.0 java-1.8.0-openjdk-devel
+                  export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
+                  sudo /usr/sbin/alternatives --set javac /usr/lib/jvm/java-1.8.0-openjdk.x86_64/bin/javac
+                  
+                  #If specified, enable WebAPI security and create users
+                  if [ "$ATLASSECURITY" = "true" ]; then
+                    sudo yum install -y httpd24-tools
+
+                    mv settings_security.xml ./WebAPI/settings.xml
+                    psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_security_user -a -f setup_security.sql
+                  
+                    count=1
+                    for i in $(echo $ATLASUSERS | sed "s/,/ /g")
+                    do
+                      if [ `expr $count % 2` -eq "1" ]; then
+                        username=$i
+                        let count+=1
+                        continue
+                      else
+                        atlaspw=`htpasswd -bnBC 4 "" $i | tr -d ':\n' | sed 's/$2y/$2a/'`
+                        psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_security_user -a -c "insert into authentication.security (email,password) values ('$username', E'$atlaspw');"
+                        let count+=1
+                      fi
+                    done
+
+                  else
+                    mv settings.xml ./WebAPI/
+                  fi
+                  
+                  cd WebAPI
+                  mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
+                  cd ..
+                  cp ./WebAPI/target/WebAPI.war .
+
+                  #Build Atlas "war" file to put at the root URL of the Tomcat server
+                  #If specified, enable Atlas security
+                  if [ "$ATLASSECURITY" = "true" ]; then
+                    mv config-local-secure.js ./Atlas/js/config-local.js
+                  else
+                    mv config-local.js ./Atlas/js/
+                  fi
+                  
+                  cd Atlas
+                  npm config set strict-ssl false
+                  #Use taobao npm registry
+                  npm config -g set registry https://registry.npm.taobao.org		  
+                  npm run build
+                  # The below statements switch the index.html from 'unbundled mode' to 'bundled mode'
+                  commentunbundled=`cat -n index.html | grep data-main=\"js/main\" | cut -f1`
+                  uncommentbundled=`cat -n index.html | grep data-main=\"js/assets/bundle/bundle\" | cut -f1`
+                  sed -i "${commentunbundled}s/.*/        <!-- <script data-main=\"js\/main\" src=\"js\/require.js\"><\/script> -->/" index.html
+                  sed -i "${uncommentbundled}s/.*/        <script data-main=\"js\/assets\/bundle\/bundle\" src=\"js\/require.js\"><\/script>/" index.html
+                  
+                  zip -r ../ROOT.war * 
+                  cd ..
+
+                  zip -r ohdsi-webapi-atlas.zip ROOT.war WebAPI.war .ebextensions
+                  aws s3 cp ohdsi-webapi-atlas.zip s3://$BUCKET_NAME 
+                mode: 000777
+                owner: root
+                group: root
+              /tmp/config_db.sh:
+                content: !Sub 
+                  - |
+                    #  This script configures the CFN deployed environment for OHDSI WebAPI and Atlas
+                    #
+                    #  Requirements: 
+                    #  $RDS_ENDPOINT must contain the endpoint of the Postgres Aurora RDS environment to be used to store the WebAPI application data
+                    #  $EB_ENDPOINT must contain the endpoint of the Elastic Beanstalk Tomcat environment
+                    #  $REDSHIFT_ENDPOINT must contain the endpoint of the Redshift Cluster used for OMOP CDM and Vocabulary
+                    #  $ACCT_ID must contain the AWS Account ID for the account in which this environment is being deployed
+                    #  $BUCKET_NAME must contain the s3 bucket name in which Elastic Beanstalk will look for the ohdsi-webapi-atlas.zip file
+                    #  $DATABASE_PASSWORD must contain the password that was used for the master accounts for Redshift and RDS Aurora Postgres
+                    #  $RS_ROLE_ARN must contain the role ARN that allows Redshift to read the sample data from S3.
+
+                    echo "RDS_ENDPOINT=" $RDS_ENDPOINT
+                    echo "EB_ENDPOINT=" $EB_ENDPOINT
+                    echo "REDSHIFT_ENDPOINT=" $REDSHIFT_ENDPOINT
+                    echo "ACCT_ID=" $ACCT_ID
+                    echo "BUCKET_NAME=" $BUCKET_NAME
+                    echo "DATABASE_PASSWORD=" $DATABASE_PASSWORD
+                    echo "RS_ROLE_ARN=" $RS_ROLE_ARN
+                    echo "RSTUDIO_TARGET_GROUP_ARN=" $RSTUDIO_TARGET_GROUP_ARN
+                    echo "SOURCES=" $SOURCES
+                    echo "SOURCESBUCKET= " $SOURCESBUCKET
+                    export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
+                    
+                    #Install R and the dependencies for Achilles
+                    sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
+                    sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
+                    if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
+                      sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
+                    fi
+                    if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
+                      sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
+                    fi
+
+                    mkdir /mnt/r-stuff
+                    cd /mnt/r-stuff
+
+                    pushd .
+                    mkdir R-latest
+                    cd R-latest
+                    wget https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/R-3.5.3.tar.gz
+                    tar -xzf R-3.5.3.tar.gz
+                    #Trying out Python
+                    sudo yum install -y python36 python36-devel python36-pip
+                    sudo yum install -y gcc gcc-c++ gcc-gfortran
+                    sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+                    cd R-3*
+                    ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
+                    make -j 8
+                    sudo make install
+                    sudo su << BASH_SCRIPT
+                    echo 'export PATH=${!PWD}/bin:$PATH' >> /etc/profile
+                    BASH_SCRIPT
+                    popd
+
+                    sudo sed -i 's/make/make -j 8/g' /usr/lib64/R/etc/Renviron
+
+                    # set unix environment variables
+                    sudo su << BASH_SCRIPT
+                    echo 'export JAVA_HOME=/etc/alternatives/jre' >> /etc/profile
+                    BASH_SCRIPT
+                    sudo sh -c "source /etc/profile"
+
+                    # fix java binding - R and packages have to be compiled with the same java version as hadoop
+                    sudo R CMD javareconf
+                    
+                    #Grab R binaries   
+                    cd /usr/lib64/R/library
+                    aws s3 cp s3://ohdsi-sample-data/ohdsi-rdependencies-3.5.3.tar.gz .
+                    tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
+                    cd /tmp
+
+                    #Install R dependencies if any of the specified versions differ
+                    sudo Rscript /tmp/rdependencies.r
+
+                    #Wait for the WebAPI app to be deployed by Elastic Beanstalk and populate the tables in RDS Postrgres
+                    while [ "`curl -I ${Protocol}${RCDomainName}.${HostedZone}:${WebPort} 2>/dev/null | head -n 1 | cut -d$' ' -f2`" != "200" ]
+                    do
+                        sleep 5
+                    done
+
+                    #Connect R-Studio Instance to the load balancer
+                    export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
+                    export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
+                    export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+                    aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 4 --conditions Field=host-header,Values='rstudio.*' --actions Type=forward,TargetGroupArn=$RSTUDIO_TARGET_GROUP_ARN
+
+                    #Connect Jupyter to the load balancer
+                    export EB_ENVIRONMENT=$(echo $EB_ENDPOINT | cut -d . -f1)
+                    export EB_LB=$(aws elasticbeanstalk describe-environment-resources --environment-name $EB_ENVIRONMENT --query EnvironmentResources.LoadBalancers --output text)
+                    export EB_LB_LISTENER=$(aws elbv2 describe-listeners --load-balancer-arn $EB_LB --query 'Listeners[0].ListenerArn' --output text)
+                    aws elbv2 create-rule --listener-arn $EB_LB_LISTENER --priority 5 --conditions Field=host-header,Values='jupyter.*' --actions Type=forward,TargetGroupArn=$JUPYTER_TARGET_GROUP_ARN
+
+                    #If using Atlas security, give users permissions in Atlas
+                    export PGPASSWORD=$DATABASE_PASSWORD
+                    if [ "$ATLASSECURITY" = "true" ]; then
+                      count=1
+                      for i in $(echo $ATLASUSERS | sed "s/,/ /g")
+                      do
+                        if [ `expr $count % 2` -eq "1" ]; then
+                          username=$i
+                          let count+=1
+                          continue
+                        else
+                          sleep 5
+                          while [ `curl -w "\\n%{http_code}\\n" -d "login=$username" --data-urlencode "password=$i" -X POST ${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/user/login/db 2>/dev/null | tail -n 1` -ne 200 ]
+                          do
+                            sleep 5
+                          done
+                          userid=`psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "select id from webapi.sec_user where login = '$username';"`
+                          echo $userid >> /tmp/userids.txt
+                          if [ "$count" = "2" ]; then
+                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,2);"
+                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
+                            firstuser=$username
+                            firstpassword="$i"
+                          else
+                            psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,10);"
+                          fi
+                          let count+=1
+                        fi
+                      done
+                    fi
+
+
+                    cd /tmp
+                    #Deploy the OMOP CDM Schema to Redshift
+                    export REDSHIFTDDL=`ls ./CommonDataModel/Redshift/OMOP*`
+                    #Some of the current Vocabulary data sets from Athena do not have values for these columns
+                    if [ "$CDM_VERSION" = "5.3.1" ]; then
+                        sed -i '47s/.*/  concept_name  VARCHAR(255) NULL ,/' "$REDSHIFTDDL"
+                        sed -i '52s/.*/  concept_code  VARCHAR(50) NULL ,/' "$REDSHIFTDDL"
+                        sed -i '62s/.*/  vocabulary_reference VARCHAR(255) NULL,/' "$REDSHIFTDDL"
+                        sed -i '63s/.*/  vocabulary_version VARCHAR(255) NULL,/' "$REDSHIFTDDL"
+                        sed -i '226s/.*/  race_source_value				    VARCHAR(255) NULL,/' "$REDSHIFTDDL"
+                        sed -i '340s/.*/  procedure_source_value		  VARCHAR(255)	  NULL ,/' "$REDSHIFTDDL"
+                        sed -i '352s/.*/  drug_exposure_start_date		  DATE			    NULL,/' "$REDSHIFTDDL"
+                        sed -i '354s/.*/  drug_exposure_end_date		  DATE			    NULL,/' "$REDSHIFTDDL"
+                        sed -i '411s/.*/  condition_source_value  		    VARCHAR(255)  	NULL,/' "$REDSHIFTDDL"
+                        sed -i '413s/.*/  condition_status_source_value	  VARCHAR(255)  	NULL,/' "$REDSHIFTDDL"
+                        sed -i '437s/.*/  measurement_source_value		  VARCHAR(255)	NULL ,/' "$REDSHIFTDDL"
+                        sed -i '440s/.*/  value_source_value			      VARCHAR(255)	NULL/' "$REDSHIFTDDL"
+                        sed -i '494s/.*/  value_as_string				        VARCHAR(255)	NULL ,/' "$REDSHIFTDDL"
+                        sed -i '546s/.*/  place_of_service_source_value   VARCHAR(255)	  	NULL/' "$REDSHIFTDDL"
+                        sed -i '676s/.*/  dose_era_start_date	    DATE			  NULL,/' "$REDSHIFTDDL"
+                        sed -i '677s/.*/  dose_era_end_date	    DATE			  NULL/' "$REDSHIFTDDL"
+                    fi
+
+                    #Insert Database Credentials into the scripts
+                    sed -i 's!REDSHIFT_ENDPOINT!'$REDSHIFT_ENDPOINT'!' postgres_init_sources.sql
+                    sed -i 's!DATABASE_PASSWORD!'$DATABASE_PASSWORD'!' postgres_init_sources.sql
+                    sed -i 's!REDSHIFT_ENDPOINT!'$REDSHIFT_ENDPOINT'!' /tmp/achilles.r
+                    sed -i 's!DATABASE_PASSWORD!'$DATABASE_PASSWORD'!' /tmp/achilles.r
+
+                    SOURCECOUNT=0
+                    SOURCEDAEMONCOUNT=0
+                    SOURCEVOCABPRIORITY=0
+                    SOURCERESULTSPRIORITY=0
+                    for i in $(echo $SOURCES | sed "s/,/ /g")
+                    do
+                          export PGPASSWORD=$DATABASE_PASSWORD
+                          cp "$REDSHIFTDDL" "$REDSHIFTDDL-$i"
+
+                          if [ "$CDM_VERSION" = "5.3.0" ]; then
+                            sed -i 's!@schema_name!'$i'!' "$REDSHIFTDDL-$i"
+                          else
+                            sed -i "1s/^/SET search_path to $i;\n/" "$REDSHIFTDDL-$i"
+                          fi
+                          
+                          psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -c "CREATE SCHEMA $i;"
+                          psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f "$REDSHIFTDDL-$i"
+                          
+                          #Deploy the DDL with the appropriate source name and run it
+                          aws s3 cp s3://$SOURCESBUCKET/$i.sql .
+                          sed -i 's!RS_ROLE_ARN!'$RS_ROLE_ARN'!' $i.sql
+                    
+                          psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f $i.sql
+
+                          #Get the Results Schema from WebAPI and apply the Results schema
+                          t="0"
+                          while [ $t -lt 10  ]; do
+                              wget --retry-connrefused --waitretry=2 --read-timeout=20 --timeout=15 -t 10 -q "${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results&vocabSchema=${!i}" -O results_schema.sql --continue
+                              if [ $? = 0 ]; then break; else t=$[$t+1]; fi; # check return value, break if successful (0)
+                              sleep 3s;
+                          done;
+                        
+                          psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -c "CREATE SCHEMA ${!i}results;"
+                          psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f results_schema.sql
+                          rm results_schema.sql
+                          
+                          #Create a WebAPI Sources DDL for this Source
+                          cp postgres_init_sources.sql postgres_init_sources-$i.sql
+                          let SOURCECOUNT+=1
+                          
+                          if [ "$SOURCECOUNT" = "1" ]; then
+                            SOURCEVOCABPRIORITY=1
+                            SOURCERESULTSPRIORITY=1
+                          else
+                            SOURCEVOCABPRIORITY=0
+                            SOURCERESULTSPRIORITY=0
+                          fi
+                          
+                          sed -i 's!SOURCECOUNT!'$SOURCECOUNT'!' postgres_init_sources-$i.sql
+                          let SOURCEDAEMONCOUNT+=1
+                          sed -i 's!SOURCEDAEMONCOUNT1!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
+                          let SOURCEDAEMONCOUNT+=1
+                          sed -i 's!SOURCEDAEMONCOUNT2!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
+                          let SOURCEDAEMONCOUNT+=1
+                          sed -i 's!SOURCEDAEMONCOUNT3!'$SOURCEDAEMONCOUNT'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCEVOCABPRIORITY!'$SOURCEVOCABPRIORITY'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCERESULTSPRIORITY!'$SOURCERESULTSPRIORITY'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCENAME_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
+                          sed -i 's!SOURCENAME_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
+                          sed -i 's!CDM_PLACEHOLDER!'$i'!' postgres_init_sources-$i.sql
+                          sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' postgres_init_sources-$i.sql  
+
+                          #Load the sources reference table into the WebAPI Postgres database
+                          export PGPASSWORD=$DATABASE_PASSWORD
+                          psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_admin_user -a -f postgres_init_sources-$i.sql
+                          aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
+
+                          #Inject source information and run Achilles R script to enabled Data Source visualization
+                          cp /tmp/achilles.r /tmp/achilles-$i.r
+                          sed -i 's!SOURCENAME_PLACEHOLDER!'$i'!' /tmp/achilles-$i.r
+                          sed -i 's!CDM_PLACEHOLDER!'$i'!' /tmp/achilles-$i.r
+                          sed -i 's!RESULTS_PLACEHOLDER!'${!i}results'!' /tmp/achilles-$i.r  
+                          Rscript /tmp/achilles-$i.r
+                          
+                          if [ "$ATLASSECURITY" = "true" ]; then
+                            sourceroleid=`psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "select id from webapi.sec_role where name LIKE '%$i%';"`
+                            while read userid; do
+                              psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_app_user -t -c "insert into webapi.sec_user_role (user_id, role_id) values ($userid,$sourceroleid);"
+                            done </tmp/userids.txt
+                          fi
+                          aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
+                    done
+                    
+                    sleep 120
+
+                    if [ "$EXAMPLESTUDIES" = "true" ]; then
+                      aws s3 cp s3://ohdsi-sample-data/ohdsiexamplestudies.zip .
+                      unzip ohdsiexamplestudies.zip
+                      if [ "$ATLASSECURITY" = "true" ]; then
+                        count=0
+                        TOKEN=`curl -v -X POST -d "rememberMe=false" -d "login=$firstuser" --data-urlencode "password=$firstpassword" ${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/user/login/db 2>&1 | grep -i bearer | cut -d ' ' -f 3`
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/prediction/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done
+                        count=0    
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/estimation/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done
+                        count=0   
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/cohort-characterization/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0  
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/pathway-analysis/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0  
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/ir/design' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done
+                      else
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/prediction/import' -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/estimation/import' -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/cohort-characterization/import' -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/pathway-analysis/import' -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done 
+                        count=0   
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/ir/design' -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
+                        do
+                          sleep 5
+                          let count+=1
+                        done
+                      fi
+                    fi
+
+
+                  - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'eb.amazonaws.com.cn']]] }
+                mode: 000777
+                owner: root
+                group: root
+              /tmp/postgres_init_master.sql:
+                content: |
+                  CREATE ROLE ohdsi_admin
+                  CREATEDB
+                  VALID UNTIL 'infinity';
+                  COMMENT ON ROLE ohdsi_admin
+                  IS 'Administration group for OHDSI applications';
+
+                  CREATE ROLE ohdsi_app
+                  VALID UNTIL 'infinity';
+                  COMMENT ON ROLE ohdsi_app
+                  IS 'Application group for OHDSI applications';
+
+                  CREATE ROLE ohdsi_security
+                  VALID UNTIL 'infinity';
+                  COMMENT ON ROLE ohdsi_security
+                  IS 'Security authentication group for OHDSI applications';
+
+                  CREATE ROLE ohdsi_admin_user LOGIN ENCRYPTED PASSWORD 'OHDSIADMINUSERPWHASH'
+                  VALID UNTIL 'infinity';
+                  GRANT ohdsi_admin TO ohdsi_admin_user;
+                  COMMENT ON ROLE ohdsi_admin_user
+                  IS 'Admin user account for OHDSI applications';
+
+                  CREATE ROLE ohdsi_app_user LOGIN ENCRYPTED PASSWORD 'OHDSIAPPUSERPWHASH'
+                  VALID UNTIL 'infinity';
+                  GRANT ohdsi_app TO ohdsi_app_user;
+                  COMMENT ON ROLE ohdsi_app_user
+                  IS 'Application user account for OHDSI applications';
+
+                  CREATE ROLE ohdsi_security_user LOGIN ENCRYPTED PASSWORD 'OHDSISECURITYPWHASH'
+                  VALID UNTIL 'infinity';
+                  GRANT ohdsi_security TO ohdsi_security_user;
+                  COMMENT ON ROLE ohdsi_security_user
+                  IS 'Security Authentication user for Atlas and WebAPI';
+
+                  ALTER USER ohdsi_admin_user CREATEDB;
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/postgres_init_ohdsi.sql:
+                content: |
+                  CREATE DATABASE "OHDSI"
+                  WITH ENCODING='UTF8'
+                      OWNER=ohdsi_admin
+                      CONNECTION LIMIT=-1;
+                  COMMENT ON DATABASE "OHDSI"
+                  IS 'OHDSI database';
+                  GRANT ALL ON DATABASE "OHDSI" TO GROUP ohdsi_admin;
+                  GRANT CONNECT, TEMPORARY ON DATABASE "OHDSI" TO GROUP ohdsi_app;
+                  GRANT CONNECT, TEMPORARY ON DATABASE "OHDSI" TO GROUP ohdsi_security;
+
+                  \c OHDSI
+
+                  CREATE SCHEMA webapi
+                      AUTHORIZATION ohdsi_admin;
+                  COMMENT ON SCHEMA webapi
+                  IS 'Schema containing tables to support WebAPI functionality';
+                  GRANT USAGE ON SCHEMA webapi TO public;
+                  GRANT ALL ON SCHEMA webapi TO GROUP ohdsi_admin;
+                  GRANT USAGE ON SCHEMA webapi TO GROUP ohdsi_app;
+                  
+                  CREATE SCHEMA authentication
+                      AUTHORIZATION ohdsi_admin;
+                  GRANT ALL ON SCHEMA authentication TO GROUP ohdsi_security;
+
+                  ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
+                    GRANT INSERT, SELECT, UPDATE, DELETE, REFERENCES, TRIGGER ON TABLES
+                    TO ohdsi_app;
+                  ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
+                    GRANT SELECT, USAGE ON SEQUENCES
+                    TO ohdsi_app;
+                  ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
+                    GRANT EXECUTE ON FUNCTIONS
+                    TO ohdsi_app;
+                  ALTER DEFAULT PRIVILEGES IN SCHEMA webapi
+                    GRANT USAGE ON TYPES
+                    TO ohdsi_app;
+                  ALTER DEFAULT PRIVILEGES IN SCHEMA authentication
+                    GRANT INSERT, SELECT, UPDATE, DELETE, REFERENCES, TRIGGER ON TABLES
+                    TO ohdsi_security;
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/setup_security.sql:
+                content: |
+                  CREATE TABLE authentication.security
+                  (
+                      email character varying(255) COLLATE pg_catalog."default",
+                      password character varying(255) COLLATE pg_catalog."default"
+                  )
+                  WITH (
+                      OIDS = FALSE
+                  )
+                  TABLESPACE pg_default;
+
+                  ALTER TABLE authentication.security
+                      OWNER to ohdsi_security;
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/postgres_init_sources.sql:
+                content: |
+                  INSERT INTO webapi.source (source_id, source_name, source_key, source_connection, source_dialect) VALUES (SOURCECOUNT, 'SOURCENAME_PLACEHOLDER', 'SOURCENAME_PLACEHOLDER', 'jdbc:redshift://REDSHIFT_ENDPOINT:5439/mycdm?user=master&password=DATABASE_PASSWORD', 'redshift');
+                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT1,SOURCECOUNT,0, 'CDM_PLACEHOLDER', 0);
+                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT2,SOURCECOUNT,1, 'CDM_PLACEHOLDER', SOURCEVOCABPRIORITY);
+                  INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT3,SOURCECOUNT,2, 'RESULTS_PLACEHOLDER', SOURCERESULTSPRIORITY);             
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/settings.xml:
+                content: !Sub |
+                  <settings>
+                  <profiles>
+                    <profile>
+                      <id>webapi-postgresql</id>
+                      <properties>
+                        <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
+                        <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
+                        <datasource.username>ohdsi_app_user</datasource.username>
+                        <datasource.password>${DatabaseMasterPassword}</datasource.password>
+                        <datasource.dialect>postgresql</datasource.dialect>
+                        <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
+                        <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
+                        <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
+                        <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
+                        <flyway.datasource.password>${DatabaseMasterPassword}</flyway.datasource.password>
+                        <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
+                        <security.enabled>false</security.enabled>
+                        <security.token.expiration>43200</security.token.expiration>
+                        <security.origin>*</security.origin>
+                        <security.ssl.enabled>false</security.ssl.enabled>
+                        <security.oauth.callback.ui>http://localhost/atlas/#/welcome</security.oauth.callback.ui>
+                        <security.oauth.callback.api>http://localhost:8080/WebAPI/user/oauth/callback</security.oauth.callback.api>
+                        <security.oauth.google.apiKey></security.oauth.google.apiKey>
+                        <security.oauth.google.apiSecret></security.oauth.google.apiSecret>
+                        <security.oauth.facebook.apiKey></security.oauth.facebook.apiKey>
+                        <security.oauth.facebook.apiSecret></security.oauth.facebook.apiSecret>
+                      </properties> 
+                    </profile>  
+                  </profiles>
+                  </settings>              
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/settings_security.xml:
+                content: !Sub |
+                  <settings>
+                  <profiles>
+                    <profile>
+                      <id>webapi-postgresql</id>
+                      <properties>
+                        <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
+                        <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
+                        <datasource.username>ohdsi_app_user</datasource.username>
+                        <datasource.password>${DatabaseMasterPassword}</datasource.password>
+                        <datasource.dialect>postgresql</datasource.dialect>
+                        <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
+                        <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
+                        <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
+                        <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
+                        <flyway.datasource.password>${DatabaseMasterPassword}</flyway.datasource.password>
+                        <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
+                        <security.provider>AtlasRegularSecurity</security.provider>
+                        <security.origin>*</security.origin>
+                        <security.maxLoginAttempts>3</security.maxLoginAttempts>
+                        <security.duration.initial>10</security.duration.initial>
+                        <security.duration.increment>10</security.duration.increment>
+                        <security.db.datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</security.db.datasource.url>
+                        <security.db.datasource.driverClassName>org.postgresql.Driver</security.db.datasource.driverClassName>
+                        <security.db.datasource.schema>authentication</security.db.datasource.schema>
+                        <security.db.datasource.username>ohdsi_security_user</security.db.datasource.username>
+                        <security.db.datasource.password>${DatabaseMasterPassword}</security.db.datasource.password>
+                        <security.db.datasource.authenticationQuery>select password from ${!security.db.datasource.schema}.security where email = ?</security.db.datasource.authenticationQuery>
+                      </properties> 
+                    </profile>  
+                  </profiles>
+                  </settings>              
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/config-local.js:
+                content: !Sub 
+                  - |
+                    define([], function () {
+                      var configLocal = {};
+                    
+                      configLocal.api = {
+                        name: 'My Organization Name',
+                        url: '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/'
+                      };
+                    
+                      return configLocal;
+                    });                    
+                  - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'eb.amazonaws.com.cn']]] }               
+                mode: 000664
+                owner: root
+                group: root
+              /tmp/config-local-secure.js:
+                content: !Sub 
+                  - |
+                    define([], function () {
+                      var configLocal = {};
+
+                      configLocal.userAuthenticationEnabled = true;
+
+                      configLocal.api = {
+                        name: 'My Organization Name',
+                        url: '${Protocol}${RCDomainName}.${HostedZone}:${WebPort}/WebAPI/'
+                      };
+
+                      configLocal.authProviders = [{
+                        "name": "Local Security Test DB",
+                        "url": "user/login/db",
+                        "ajax": true,
+                        "icon": "fa fa-database",
+                        "isUseCredentialsForm": true
+                      }];                    
+
+                      return configLocal;
+                    });                    
+                  - { Protocol: !If [ DeployACM, 'https://', 'http://' ], RCDomainName: !If [DeployRoute53, !Ref DomainName, !Ref EBEndpoint], HostedZone: !If [DeployRoute53, !Ref HostedZoneName, !Join ['.', [!Ref 'AWS::Region', 'eb.amazonaws.com.cn']]] }               
+                mode: 000664
+                owner: root
+                group: root 
+              /tmp/rdependencies.r:
+                content: !Sub |
+                  print("Testing to see if R dependency libraries are installed...")
+                  try(if("callr" %in% rownames(installed.packages()) == FALSE){install.packages("callr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("cli" %in% rownames(installed.packages()) == FALSE){install.packages("cli", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("digest" %in% rownames(installed.packages()) == FALSE){install.packages("digest", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("git2r" %in% rownames(installed.packages()) == FALSE){install.packages("git2r", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("httr" %in% rownames(installed.packages()) == FALSE){install.packages("httr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("jsonlite" %in% rownames(installed.packages()) == FALSE){install.packages("jsonlite", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("memoise" %in% rownames(installed.packages()) == FALSE){install.packages("memoise", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("pkgbuild" %in% rownames(installed.packages()) == FALSE){install.packages("pkgbuild", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("pkgload" %in% rownames(installed.packages()) == FALSE){install.packages("pkgload", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("processx" %in% rownames(installed.packages()) == FALSE){install.packages("processx", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("rcmdcheck" %in% rownames(installed.packages()) == FALSE){install.packages("rcmdcheck", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("remotes" %in% rownames(installed.packages()) == FALSE){install.packages("remotes", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("rstudioapi" %in% rownames(installed.packages()) == FALSE){install.packages("rstudioapi", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("sessioninfo" %in% rownames(installed.packages()) == FALSE){install.packages("sessioninfo", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("usethis" %in% rownames(installed.packages()) == FALSE){install.packages("usethis", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if("withr" %in% rownames(installed.packages()) == FALSE){install.packages("withr", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+
+                  try(if(("devtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("devtools") != "2.0.2")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/devtools_2.0.2.tar.gz", repos=NULL, type="source")})
+                  try(if(("remotes" %in% rownames(installed.packages()) == FALSE) || (packageVersion("remotes") != "2.0.4")){devtools::install_version("remotes", version = "2.0.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+
+                  try(if(("aws.signature" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.signature") != "0.5.0")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.signature_0.5.0.tar.gz", repos=NULL, type="source")})
+                  try(if(("aws.ec2metadata" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.ec2metadata") != "0.1.6")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.ec2metadata_0.1.6.tar.gz", repos=NULL, type="source")})
+                  try(if(("aws.s3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("aws.s3") != "0.3.20")){install.packages("https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/aws.s3_0.3.20.tar.gz", repos=NULL, type="source")})
+                  try(if(("acepack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("acepack") != "1.4.1")){devtools::install_version("acepack", version = "1.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("askpass" %in% rownames(installed.packages()) == FALSE) || (packageVersion("askpass") != "1.1")){devtools::install_version("askpass", version = "1.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("assertthat" %in% rownames(installed.packages()) == FALSE) || (packageVersion("assertthat") != "0.2.1")){devtools::install_version("assertthat", version = "0.2.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("AUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("AUC") != "0.3.0")){devtools::install_version("AUC", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("backports" %in% rownames(installed.packages()) == FALSE) || (packageVersion("backports") != "1.1.4")){devtools::install_version("backports", version = "1.1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("base64enc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("base64enc") != "0.1-3")){devtools::install_version("base64enc", version = "0.1-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("BH" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BH") != "1.69.0-1")){devtools::install_version("BH", version = "1.69.0-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("bit" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bit") != "1.1-14")){devtools::install_version("bit", version = "1.1-14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("bitops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bitops") != "1.0-6")){devtools::install_version("bitops", version = "1.0-6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("caTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("caTools") != "1.17.1.2")){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("checkmate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("checkmate") != "1.9.3")){devtools::install_version("checkmate", version = "1.9.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("clipr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clipr") != "0.6.0")){devtools::install_version("clipr", version = "0.6.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("clisymbols" %in% rownames(installed.packages()) == FALSE) || (packageVersion("clisymbols") != "1.2.0")){devtools::install_version("clisymbols", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("colorspace" %in% rownames(installed.packages()) == FALSE) || (packageVersion("colorspace") != "1.4-1")){devtools::install_version("colorspace", version = "1.4-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("config" %in% rownames(installed.packages()) == FALSE) || (packageVersion("config") != "0.3")){devtools::install_version("config", version = "0.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("crayon" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crayon") != "1.3.4")){devtools::install_version("crayon", version = "1.3.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("crosstalk" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crosstalk") != "1.0.0")){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("curl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("curl") != "3.3")){devtools::install_version("curl", version = "3.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("data.table" %in% rownames(installed.packages()) == FALSE) || (packageVersion("data.table") != "1.12.2")){devtools::install_version("data.table", version = "1.12.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("DBI" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DBI") != "1.0.0")){devtools::install_version("DBI", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("desc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("desc") != "1.2.0")){devtools::install_version("desc", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("diagram" %in% rownames(installed.packages()) == FALSE) || (packageVersion("diagram") != "1.6.4")){devtools::install_version("diagram", version = "1.6.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("doParallel" %in% rownames(installed.packages()) == FALSE) || (packageVersion("doParallel") != "1.0.14")){devtools::install_version("doParallel", version = "1.0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("dplyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("dplyr") != "0.8.1")){devtools::install_version("dplyr", version = "0.8.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("DT" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DT") != "0.7")){devtools::install_version("DT", version = "0.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("evaluate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("evaluate") != "0.14")){devtools::install_version("evaluate", version = "0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fansi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fansi") != "0.4.0")){devtools::install_version("fansi", version = "0.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fastmatch" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fastmatch") != "1.1-0")){devtools::install_version("fastmatch", version = "1.1-0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ff" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ff") != "2.2-14")){devtools::install_version("ff", version = "2.2-14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ffbase" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ffbase") != "0.12.7")){devtools::install_version("ffbase", version = "0.12.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("foreach" %in% rownames(installed.packages()) == FALSE) || (packageVersion("foreach") != "1.4.4")){devtools::install_version("foreach", version = "1.4.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("formatR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("formatR") != "1.7")){devtools::install_version("formatR", version = "1.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Formula" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Formula") != "1.2-3")){devtools::install_version("Formula", version = "1.2-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("fs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fs") != "1.3.1")){devtools::install_version("fs", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("functional" %in% rownames(installed.packages()) == FALSE) || (packageVersion("functional") != "0.6")){devtools::install_version("functional", version = "0.6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gdtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gdtools") != "0.1.9")){devtools::install_version("gdtools", version = "0.1.9", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("generics" %in% rownames(installed.packages()) == FALSE) || (packageVersion("generics") != "0.0.2")){devtools::install_version("generics", version = "0.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ggplot2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ggplot2") != "3.2.0")){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gh" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gh") != "1.0.1")){devtools::install_version("gh", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("glue" %in% rownames(installed.packages()) == FALSE) || (packageVersion("glue") != "1.3.1")){devtools::install_version("glue", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gridExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gridExtra") != "2.3")){devtools::install_version("gridExtra", version = "2.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("gtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gtable") != "0.3.0")){devtools::install_version("gtable", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("hexbin" %in% rownames(installed.packages()) == FALSE) || (packageVersion("hexbin") != "1.27.3")){devtools::install_version("hexbin", version = "1.27.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("highr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("highr") != "0.8")){devtools::install_version("highr", version = "0.8", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Hmisc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hmisc") != "4.2-0")){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmlTable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlTable") != "1.13.1")){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.3.6")){devtools::install_version("htmltools", version = "0.3.6", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("htmlwidgets" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlwidgets") != "1.3")){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.5.0")){devtools::install_version("httpuv", version = "1.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ini" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ini") != "0.3.1")){devtools::install_version("ini", version = "0.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("iterators" %in% rownames(installed.packages()) == FALSE) || (packageVersion("iterators") != "1.0.10")){devtools::install_version("iterators", version = "1.0.10", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("itertools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("itertools") != "0.1-3")){devtools::install_version("itertools", version = "0.1-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("keras" %in% rownames(installed.packages()) == FALSE) || (packageVersion("keras") != "2.2.4.1")){devtools::install_version("keras", version = "2.2.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("knitr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("knitr") != "1.23")){devtools::install_version("knitr", version = "1.23", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("labeling" %in% rownames(installed.packages()) == FALSE) || (packageVersion("labeling") != "0.3")){devtools::install_version("labeling", version = "0.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("later" %in% rownames(installed.packages()) == FALSE) || (packageVersion("later") != "0.8.0")){devtools::install_version("later", version = "0.8.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("latticeExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("latticeExtra") != "0.6-28")){devtools::install_version("latticeExtra", version = "0.6-28", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("lazyeval" %in% rownames(installed.packages()) == FALSE) || (packageVersion("lazyeval") != "0.2.2")){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("magrittr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("magrittr") != "1.5")){devtools::install_version("magrittr", version = "1.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("mailR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mailR") != "0.4.1")){devtools::install_version("mailR", version = "0.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("markdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("markdown") != "1")){devtools::install_version("markdown", version = "1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("mime" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mime") != "0.7")){devtools::install_version("mime", version = "0.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("munsell" %in% rownames(installed.packages()) == FALSE) || (packageVersion("munsell") != "0.5.0")){devtools::install_version("munsell", version = "0.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("officer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("officer") != "0.3.5")){devtools::install_version("officer", version = "0.3.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("openssl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openssl") != "1.4")){devtools::install_version("openssl", version = "1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("openxlsx" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openxlsx") != "4.1.0.1")){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pack") != "0.1-1")){devtools::install_version("pack", version = "0.1-1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ParallelLogger" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ParallelLogger") != "1.1.0")){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pillar" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pillar") != "1.4.1")){devtools::install_version("pillar", version = "1.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pkgconfig" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pkgconfig") != "2.0.2")){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plogr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plogr") != "0.2.0")){devtools::install_version("plogr", version = "0.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plotly" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plotly") != "4.9.0")){devtools::install_version("plotly", version = "4.9.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("plyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plyr") != "1.8.4")){devtools::install_version("plyr", version = "1.8.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("png" %in% rownames(installed.packages()) == FALSE) || (packageVersion("png") != "0.1-7")){devtools::install_version("png", version = "0.1-7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("prettyunits" %in% rownames(installed.packages()) == FALSE) || (packageVersion("prettyunits") != "1.0.2")){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("pROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pROC") != "1.15.0")){devtools::install_version("pROC", version = "1.15.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.0.1")){devtools::install_version("promises", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("PRROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PRROC") != "1.3.1")){devtools::install_version("PRROC", version = "1.3.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.3.0")){devtools::install_version("ps", version = "1.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("purrr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("purrr") != "0.3.2")){devtools::install_version("purrr", version = "0.3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("PythonInR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PythonInR") != "0.1-4")){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.methodsS3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.methodsS3") != "1.7.1")){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.oo" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.oo") != "1.22.0")){devtools::install_version("R.oo", version = "1.22.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R.utils" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.utils") != "2.9.0")){devtools::install_version("R.utils", version = "2.9.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("R6" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R6") != "2.4.0")){devtools::install_version("R6", version = "2.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RColorBrewer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RColorBrewer") != "1.1-2")){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("Rcpp" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Rcpp") != "1.0.1")){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RcppEigen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RcppEigen") != "0.3.3.5.0")){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RCurl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RCurl") != "1.95-4.12")){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ReporteRs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRs") != "0.8.10")){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("ReporteRsjars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRsjars") != "0.0.4")){devtools::install_version("ReporteRsjars", version = "0.0.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("reshape2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reshape2") != "1.4.3")){devtools::install_version("reshape2", version = "1.4.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("reticulate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("reticulate") != "1.12")){devtools::install_version("reticulate", version = "1.12", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rJava" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rJava") != "0.9-11")){devtools::install_version("rJava", version = "0.9-11", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rjson" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rjson") != "0.2.20")){devtools::install_version("rjson", version = "0.2.20", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("RJSONIO" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RJSONIO") != "1.3-1.2")){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rlang" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rlang") != "0.4.0")){devtools::install_version("rlang", version = "0.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rmarkdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rmarkdown") != "1.13")){devtools::install_version("rmarkdown", version = "1.13", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rprojroot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rprojroot") != "1.3-2")){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("rvg" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rvg") != "0.2.1")){devtools::install_version("rvg", version = "0.2.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("scales" %in% rownames(installed.packages()) == FALSE) || (packageVersion("scales") != "1.0.0")){devtools::install_version("scales", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shape" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shape") != "1.4.4")){devtools::install_version("shape", version = "1.4.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shiny" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shiny") != "1.3.2")){devtools::install_version("shiny", version = "1.3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shinycssloaders" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinycssloaders") != "0.2.0")){devtools::install_version("shinycssloaders", version = "0.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("shinydashboard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("shinydashboard") != "0.7.1")){devtools::install_version("shinydashboard", version = "0.7.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("slam" %in% rownames(installed.packages()) == FALSE) || (packageVersion("slam") != "0.1-45")){devtools::install_version("slam", version = "0.1-45", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("snow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("snow") != "0.4-3")){devtools::install_version("snow", version = "0.4-3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("sourcetools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sourcetools") != "0.1.7")){devtools::install_version("sourcetools", version = "0.1.7", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("stringi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringi") != "1.4.3")){devtools::install_version("stringi", version = "1.4.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("stringr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("stringr") != "1.4.0")){devtools::install_version("stringr", version = "1.4.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("survAUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("survAUC") != "1.0-5")){devtools::install_version("survAUC", version = "1.0-5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("sys" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sys") != "3.2")){devtools::install_version("sys", version = "3.2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tensorflow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tensorflow") != "1.13.1")){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tfruns" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tfruns") != "1.4")){devtools::install_version("tfruns", version = "1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tibble" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tibble") != "2.1.3")){devtools::install_version("tibble", version = "2.1.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tidyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyr") != "0.8.3")){devtools::install_version("tidyr", version = "0.8.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tidyselect" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyselect") != "0.2.5")){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("tinytex" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tinytex") != "0.14")){devtools::install_version("tinytex", version = "0.14", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("triebeard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("triebeard") != "0.3.0")){devtools::install_version("triebeard", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("urltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("urltools") != "1.7.3")){devtools::install_version("urltools", version = "1.7.3", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("utf8" %in% rownames(installed.packages()) == FALSE) || (packageVersion("utf8") != "1.1.4")){devtools::install_version("utf8", version = "1.1.4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("uuid" %in% rownames(installed.packages()) == FALSE) || (packageVersion("uuid") != "0.1-2")){devtools::install_version("uuid", version = "0.1-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("vctrs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("vctrs") != "0.1.0")){devtools::install_version("vctrs", version = "0.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("viridis" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridis") != "0.5.1")){devtools::install_version("viridis", version = "0.5.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("viridisLite" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridisLite") != "0.3.0")){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("whisker" %in% rownames(installed.packages()) == FALSE) || (packageVersion("whisker") != "0.3-2")){devtools::install_version("whisker", version = "0.3-2", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xfun" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xfun") != "0.8")){devtools::install_version("xfun", version = "0.8", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xgboost" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xgboost") != "0.6.4.1")){devtools::install_version("xgboost", version = "0.6.4.1", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("XML" %in% rownames(installed.packages()) == FALSE) || (packageVersion("XML") != "3.98-1.20")){devtools::install_version("XML", version = "3.98-1.20", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xml2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xml2") != "1.2.0")){devtools::install_version("xml2", version = "1.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xopen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xopen") != "1.0.0")){devtools::install_version("xopen", version = "1.0.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("xtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("xtable") != "1.8-4")){devtools::install_version("xtable", version = "1.8-4", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("yaml" %in% rownames(installed.packages()) == FALSE) || (packageVersion("yaml") != "2.2.0")){devtools::install_version("yaml", version = "2.2.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+                  try(if(("zeallot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("zeallot") != "0.1.0")){devtools::install_version("zeallot", version = "0.1.0", repos = "http://mirror.lzu.edu.cn/CRAN", upgrade = "never")})
+
+                mode: 000664
+                owner: root
+                group: root  
+              /tmp/achilles.r:
+                content: !Sub |
+                  #try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", version = "${SqlRenderv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  #try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", version = "${DatabaseConnectorv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  #try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  #try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
+                  #try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
+                  library(Achilles)
+                  connectionDetails <- createConnectionDetails(dbms="redshift", server="REDSHIFT_ENDPOINT/mycdm", user="master",
+                                          password='DATABASE_PASSWORD', schema="CDM_PLACEHOLDER", port="5439")
+                  achillesResults <- achilles(connectionDetails, cdmDatabaseSchema="CDM_PLACEHOLDER", 
+                                          resultsDatabaseSchema="RESULTS_PLACEHOLDER", sourceName="SOURCENAME_PLACEHOLDER", 
+                                          cdmVersion = "5", vocabDatabaseSchema="CDM_PLACEHOLDER")              
+                mode: 000664
+                owner: root
+                group: root           
+              /tmp/.ebextensions/httpd/conf.d/ssl.conf:
+                content: |
+                  LoadModule ssl_module modules/mod_ssl.so
+                  Listen 443
+                  <VirtualHost *:443>
+                  <Proxy *>
+                      Require all granted
+                  </Proxy>
+
+                  SSLEngine             on
+                  SSLCertificateFile    "/etc/pki/tls/certs/server.crt"
+                  SSLCertificateKeyFile "/etc/pki/tls/certs/server.key"
+                  SSLCipherSuite        EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
+                  SSLProtocol           All -SSLv2 -SSLv3
+                  SSLHonorCipherOrder   On
+                  SSLSessionTickets     Off
+
+                  Header always set Strict-Transport-Security "max-age=63072000; includeSubdomains; preload"
+                  Header always set X-Content-Type-Options nosniff
+
+                  ProxyPass / http://localhost:80/ retry=0
+                  ProxyPassReverse / http://localhost:80/
+                  ProxyPreserveHost on
+                  RequestHeader set X-Forwarded-Proto "https" early
+
+                  </VirtualHost>
+                mode: 000500
+                owner: root
+                group: root
+              /tmp/.ebextensions/httpd/conf/httpd.conf:
+                content: |
+                  # Managed by Elastic Beanstalk
+                  PidFile run/httpd.pid
+
+                  # Enable TCP keepclive
+                  Timeout 240
+                  KeepAlive On
+                  MaxKeepAliveRequests 100
+                  KeepAliveTimeout 240
+
+                  <IfModule worker.c>
+                  StartServers        10
+                  MinSpareThreads     240
+                  MaxSpareThreads     240
+                  ServerLimit         10
+                  MaxRequestWorkers          250
+                  MaxConnectionsPerChild 1000000
+                  </IfModule>
+
+                  Listen 80
+
+                  IncludeOptional conf.d/*.conf
+                  IncludeOptional conf.d/elasticbeanstalk/*.conf
+
+                  User apache
+                  Group apache
+
+                  CustomLog logs/access_log "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+                  TraceEnable off
+
+                  LoadModule alias_module modules/mod_alias.so
+                  LoadModule authz_host_module modules/mod_authz_host.so
+                  LoadModule log_config_module modules/mod_log_config.so
+                  LoadModule deflate_module modules/mod_deflate.so
+                  LoadModule headers_module modules/mod_headers.so
+                  LoadModule proxy_module modules/mod_proxy.so
+                  LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
+                  LoadModule proxy_ftp_module modules/mod_proxy_ftp.so
+                  LoadModule proxy_http_module modules/mod_proxy_http.so
+                  LoadModule proxy_ajp_module modules/mod_proxy_ajp.so
+                  LoadModule proxy_connect_module modules/mod_proxy_connect.so
+                  LoadModule cache_module modules/mod_cache.so
+                  LoadModule setenvif_module modules/mod_setenvif.so
+                  LoadModule rewrite_module modules/mod_rewrite.so
+                  LoadModule mpm_worker_module modules/mod_mpm_worker.so
+                  LoadModule autoindex_module modules/mod_autoindex.so
+                  LoadModule authz_core_module modules/mod_authz_core.so
+                  LoadModule unixd_module modules/mod_unixd.so
+                  LoadModule filter_module modules/mod_filter.so
+                  LoadModule slotmem_shm_module modules/mod_slotmem_shm.so
+                  LoadModule ssl_module modules/mod_ssl.so
+                  LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+                mode: 000500
+                owner: root
+                group: root
+              /tmp/.ebextensions/00HIPAA.config:
+                content: |
+                  packages:
+                    yum:
+                      mod24_ssl : []
+                  commands:
+                    00mountencrypted:
+                      command: |
+                        #Create an encrypted EBS volume and mount it to store the HTTPD access_log and error_log.  Just in case PHI is written to these logs in error messages.
+                        mount='/var/log/tomcat8'
+                        if grep -qs "$mount" /proc/mounts; then
+                        echo "encrypted volume already mounted ..."
+                        else
+                        awszone=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                        awsregion=${awszone::-1}
+                        device='/dev/sdh'
+                        instanceId=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                        createJson=$(aws ec2 create-volume --size 4 --region $awsregion --availability-zone $awszone --volume-type standard --encrypted)
+                        volumeId=$(echo $createJson | sed -n 's/.*"VolumeId": "\(.*\)",/\1/p' | cut -d '"' -f 1)
+                        aws ec2 wait volume-available --region $awsregion --volume-ids $volumeId
+                        aws ec2 attach-volume --volume-id $volumeId --instance-id $instanceId --device $device --region $awsregion
+                        aws ec2 wait volume-in-use --region $awsregion --volume-ids $volumeId
+                        aws ec2 modify-instance-attribute --instance-id $instanceId --block-device-mappings DeviceName=$device,Ebs={DeleteOnTermination=true} --region $awsregion
+                        while [ `stat ${device} 2>/dev/null 1>&2; echo $?` -ne 0 ]; do
+                        sleep 1
+                        done
+                        mkfs -t ext3 $device
+                        mkdir /tmp/mnt
+                        cp -a $mount /tmp/mnt
+                        mount $device $mount
+                        cp -a /tmp/mnt $mount
+                        chown tomcat.tomcat /var/log/tomcat8
+                        fi
+                      ignoreErrors: false
+                    01SelfSignedSSL:
+                      command: |
+                        #Generate a self-signed cert to be used between the AWS ALB and the Apache PHP servers.
+                        if [ ! -f /etc/pki/tls/certs/server.key ]; then
+                        openssl genrsa 2048 > server.key
+                        openssl req -new -key server.key -out csr.pem -subj "/C=US/ST=WA/L=Seattle/O=anon/OU=anon/CN=none/emailAddress=none"
+                        openssl x509 -req -days 365 -in csr.pem -signkey server.key -out server.crt
+                        cp server.crt server.key /etc/pki/tls/certs/
+                        rm -f server.crt server.key csr.pem
+                        else
+                        echo "Already have a self-signed private key.  This must be an application redeployment"
+                        fi
+                    02InstallSSMClient:
+                      command: |
+                        # Install SSM client
+                        yum install -y https://ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/amazon-ssm-agent.rpm
+                        restart amazon-ssm-agent
+                    03SkipBadJars:
+                      command: |
+                        # Without this, sometimes WebAPI fails to start referencing the following class: [org.bouncycastle.asn1.ASN1Boolean
+                        sudo echo "tomcat.util.scan.StandardJarScanFilter.jarsToSkip=bcprov*.jar" >> /etc/tomcat8/catalina.properties
+
+                    create_post_dir:
+                        command: "mkdir /opt/elasticbeanstalk/hooks/appdeploy/post"
+                        ignoreErrors: true
+                  files:
+                      "/opt/elasticbeanstalk/hooks/appdeploy/post/99_httpd_timeout_config.sh":
+                        mode: "000755"
+                        owner: root
+                        group: root
+                        content: |
+                          #Change Apache session timeout values for Atlas long running queries
+                          sudo sed -i -e '/Timeout / s/ .*/ 240/' /etc/httpd/conf/httpd.conf
+                mode: 000500
+                owner: root
+                group: root
+    Properties:
+      InstanceInitiatedShutdownBehavior: 'terminate'
+      InstanceType: 'm5.xlarge'
+      KeyName: !Ref 'EC2KeyName'
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      IamInstanceProfile: !Ref TempEC2InstanceProfile
+      SecurityGroupIds: 
+        - !Ref SGApp
+      SubnetId: !Ref SubnetAppA
+      Tags:
+        - Key: "Name"
+          Value: "ohdsi-temp-build-instance"
+      UserData:
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          export RDS_ENDPOINT=${RDSEndpoint}
+          export EB_ENDPOINT=${EBEndpoint}.${AWS::Region}.eb.amazonaws.com.cn
+          export REDSHIFT_ENDPOINT=${RedshiftEndpoint}
+          export ACCT_ID=${AWS::AccountId}
+          export BUCKET_NAME=${EBBucket}
+          export DATABASE_PASSWORD=${DatabaseMasterPassword}
+          export RS_ROLE_ARN=${RSRoleArn}
+          export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
+          export RSTUDIO_TARGET_GROUP_ARN=${RStudioTargetGroupArn}
+          export JUPYTER_TARGET_GROUP_ARN=${JupyterTargetGroupArn}
+          export CDM_VERSION=${OMOPv}
+          export WEBAPI_VERSION=${WebAPIv}
+          export SOURCES=${Sources}
+          export SOURCESBUCKET=${SourcesBucket}
+          export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export OHDSIAPPUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_app_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export OHDSISECURITYPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_security_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
+          export ATLASSECURITY=${AtlasSecurity}
+          export EXAMPLESTUDIES=${ExampleStudies}
+          export ATLASUSERS="${UserList}"
+
+          # Install SSM client
+          yum install -y https://sun-ohdsi.s3.cn-northwest-1.amazonaws.com.cn/ohdsi-rstudio/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
+
+          yum update -y aws-cli 
+          yum install -y awslogs git
+          
+          aws configure set default.region cn-northwest-1
+          aws configure set metadata_service_timeout 10
+          aws configure set metadata_service_num_attempts 5
+
+          #Use cfn-init to grab and apply the files specified in the above UserData
+          /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
+          cd /tmp
+
+          if [ "$WEBAPI_VERSION" = "2.7.5" ]; then
+            aws s3 cp s3://ohdsi-sample-data/AtlasWebAPI275.zip .
+            unzip AtlasWebAPI275.zip
+          else
+            git clone -b v${Atlasv} https://gitee.com/wxrsun/Atlas.git
+            git clone -b v${WebAPIv} https://gitee.com/wxrsun/WebAPI.git
+          fi
+
+          if [ "$CDM_VERSION" = "5.3.0" ]; then
+            aws s3 cp s3://ohdsi-sample-data/CDM5.3.0_DDL_Redshift_optimized.sql .
+            mkdir -p CommonDataModel/Redshift/
+            cp CDM5.3.0_DDL_Redshift_optimized.sql ./CommonDataModel/Redshift/OMOP.sql
+          else
+            git clone -b v${OMOPv} https://gitee.com/wxrsun/CommonDataModel.git
+          fi
+          
+          sudo service awslogs start
+          #sudo -E bash ./config_ohdsi.sh &>> log.txt
+          sudo -E bash ./config_ohdsi.sh
+          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks | grep "Tomcat 8" | head -1 | cut -d \" -f2`
+          /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
+          #sudo -E bash ./config_db.sh &>> log.txt
+          sudo -E bash ./config_db.sh
+          aws s3 cp /var/log/cloud-init-output.log s3://$BUCKET_NAME
+          #Shutdown and terminate this temporary instance 
+          sleep 20
+          shutdown -h now
+  EC2WaitCondition:
+    Type: "AWS::CloudFormation::WaitCondition"
+    DependsOn: "TempEC2Instance"
+    Properties: 
+      Handle: 
+        Ref: "EC2WaitHandle"
+      Timeout: "7200"
+      Count: 1
+  EC2WaitHandle:
+    Type: "AWS::CloudFormation::WaitConditionHandle"
+
+Outputs:
+  PublicAlbDnsName:
+    Value: !If [ DeployACM, !GetAtt 'OHDSIEnvironmentACM.EndpointURL', !GetAtt 'OHDSIEnvironmentNoACM.EndpointURL' ]

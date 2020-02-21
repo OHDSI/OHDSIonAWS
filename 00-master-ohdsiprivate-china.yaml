@@ -1,0 +1,720 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance with the License. 
+# A copy of the License is located at
+#    http://aws.amazon.com/apache2.0/
+# or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Stack to deploy a highly available, elastic, scalable, private OHDSI environment. This master stack launches multiple nested stacks for different tiers.
+
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: General AWS
+      Parameters:
+        - EC2KeyName
+        - AccessCidr
+    - Label:
+          default: DNS and SSL
+      Parameters:
+        - EBEndpoint
+        - WebPort
+        - UseRoute53Boolean
+        - UseACMBoolean
+        - HostedZoneId
+        - HostedZoneName
+        - DomainName
+    - Label:
+        default: Database Tier
+      Parameters:
+        - DatabaseType
+        - DatabaseInstanceType
+        - RedshiftInstanceType
+        - NumRedshiftNodes
+        - DatabaseMasterPassword
+    - Label:
+        default: OMOP Sources
+      Parameters:
+        - Sources
+        - SourcesBucket
+    - Label:
+        default: RStudio
+      Parameters:
+        - RStudioInstanceType
+        - RStudioHomeDirectorySize
+        - RStudioUserList
+    - Label:
+        default: Atlas
+      Parameters:
+        - WebInstanceType
+        - WebAsgMin
+        - WebAsgMax
+        - ExampleStudies
+        - AtlasSecurity
+    - Label:
+        default: OHDSI Project Versions
+      Parameters:
+        - OMOPv
+        - Atlasv
+        - WebAPIv
+        - Achillesv
+        - PatientLevelPredictionv
+        - CohortMethodv
+        - SqlRenderv
+        - DatabaseConnectorv
+        - DatabaseConnectorJarsv
+        - OhdsiRToolsv
+        - FeatureExtractionv
+        - Cyclopsv
+        - EmpiricalCalibrationv
+        - OhdsiSharingv
+        - MethodEvaluationv
+        - Hydrav
+        - PredictionComparisonv
+        - Eunomiav
+    - Label:
+        default: VPC Networking
+      Parameters:
+        - VPCId
+        - SubnetPublicA
+        - SubnetPublicB
+        - SubnetAppA
+        - SubnetAppB
+        - SubnetDataA
+        - SubnetDataB
+    
+    ParameterLabels:
+      EC2KeyName:
+        default: EC2 Key Pair
+      AccessCidr:
+        default: Limit access to IP address range?
+
+      EBEndpoint:
+        default: Elastic Beanstalk Endpoint Name
+      WebPort:
+        default: Web server port number
+      UseRoute53Boolean:
+        default: Use Route 53?
+      UseACMBoolean:
+        default: Apply SSL Certificate?
+      HostedZoneId:
+        default: Route53 Hosted Zone ID
+      HostedZoneName:
+        default: Route53 Hosted Zone Domain Name
+      DomainName:
+        default: Route53 Site Domain
+
+      DatabaseType:
+        default: Use Primary and Standby Database Instances?
+      DatabaseInstanceType:
+        default: DB Instance Class
+      RedshiftInstanceType:
+        default: Instance Type for Redshift cluster nodes
+      NumRedshiftNodes:
+        default: Number of nodes in your Redshift cluster
+      DatabaseMasterPassword:
+        default: 'Aurora Postgres and Redshift master password'
+      Sources:
+        default: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse.  The first source in the list will have its Vocabulary and Results schema priorty set to 1 for WebAPI.
+      SourcesBucket:
+        default: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
+
+      WebAsgMin:
+        default: Minimum Atlas/WebAPI Instances
+      WebAsgMax:
+        default: Maximum Atlas/WebAPI Instances
+      WebInstanceType:
+        default: Atlas/WebAPI Instance Type
+      ExampleStudies:
+        default: Include Example Studies in Atlas?
+      AtlasSecurity:
+        default: Enable Authentication For Atlas?
+
+      RStudioInstanceType:
+        default: Instance Type for RStudio
+      RStudioHomeDirectorySize:
+        default: Home Directory size for RStudio instance
+      RStudioUserList:
+        default: Comma-delimited user list for RStudio
+
+
+      Atlasv:
+        default:  Atlas Version
+      WebAPIv:
+        default:  WebAPI Version
+      OMOPv:
+        default:  OMOP Common Data Model Version
+      Achillesv:
+        default:  Achilles Version
+      PatientLevelPredictionv:
+        default:  PatientLevelPrediction Version
+      CohortMethodv:
+        default:  CohortMethod Version
+      SqlRenderv:
+        default:  SqlRender Version
+      DatabaseConnectorv:
+        default:  DatabaseConnector Version
+      DatabaseConnectorJarsv:
+        default:  DatabaseConnectorJars Version
+      OhdsiRToolsv:
+        default: OhdsiRTools Version
+      FeatureExtractionv:
+        default:  FeatureExtraction Version
+      Cyclopsv:
+        default:  Cyclops Version
+      EmpiricalCalibrationv:
+        default:  EmpiricalCalibration Version
+      OhdsiSharingv:
+        default:  OhdsiSharing Version
+      MethodEvaluationv:
+        default: MethodEvaluation Version
+      Hydrav:
+        default: Hydra Version
+      PredictionComparisonv:
+        default: PredictionComparison Version
+      Eunomiav:
+        default: Eunomia Version
+      
+
+      VPCId:
+        default: VPC to use for OHDSI
+      SubnetPublicA:
+        default: Presentation Subnet A
+      SubnetPublicB:
+        default: Presentation Subnet B
+      SubnetAppA:
+        default: Application Subnet A  
+      SubnetAppB:
+        default: Application Subnet B  
+      SubnetDataA:
+        default: Database Subnet A  
+      SubnetDataB:
+        default: Database Subnet B
+
+
+
+Parameters:
+  EC2KeyName:
+    ConstraintDescription: Must be letters (upper or lower), numbers, and special characters.
+    Description: '[ REQUIRED ] Name of an EC2 KeyPair. Your bastion & Web instances will launch with this KeyPair. To create a KeyPair, see https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair'
+    Type: AWS::EC2::KeyPair::KeyName
+  AccessCidr:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    Description: 'The CIDR IP range that is permitted to access your OHDSI servers. Note: A value of 0.0.0.0/0 will allow access from ANY IP address.'
+    Type: String
+    Default: 0.0.0.0/0
+
+
+  EBEndpoint:
+    AllowedPattern: ^([a-zA-Z0-9-])*$
+    Description: '[ REQUIRED ] The unique name to use for your Elastic Beanstalk URL (will be rendered http://(EBEndpoint).(region).elasticbeanstalk.com).  You can use the "nslookup" to see if an endpoint is in use.'
+    ConstraintDescription: 'This name must be between 4 and 40 characters and contain only letters, numbers, and/or a hyphen'
+    MaxLength: 40
+    MinLength: 4    
+    Type: String
+  WebPort:
+    Description: 'By default, China blocks inbound access to common ports like 80, 8080, and 443.  If you need to use these ports, there is an exception process.'
+    Type: Number
+    MaxValue: 65535
+    MinValue: 1
+    Default: 80
+  UseRoute53Boolean:
+    AllowedValues:
+    #  - true
+      - false
+    Default: false
+    Description: Specifies whether a record set should be created in Route 53 for your OHDSI domain name.  If not, you will recieve a default Elastic Beanstalk DNS name (e.g. ohdsi.us-east-1.elasticbeanstalk.com).
+    Type: String
+  UseACMBoolean:
+    AllowedValues:
+    #  - true
+      - false
+    Default: false
+    Description: '[ Requires Route53 ] Specifies whether an SSL certificate should be generated for your domain name using AWS Certificate Manager (ACM).  If one is not generated, HTTP will be used and an SSL certificate can be applied after deployment.'
+    Type: String
+  HostedZoneId:
+    Description: '[ Optional, only needed if using Route53 ] The Route 53 hosted zone ID to create the domain in (e.g. Z2FDTNDATAQYW2).'
+    Type: String
+  HostedZoneName:
+    AllowedPattern: ^$|(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+    Description: '[ Optional, only needed if using Route53 ] The Route 53 hosted zone name to create the domain in (e.g. example.edu).'
+    Type: String
+  DomainName:
+    AllowedPattern: ^([a-zA-Z0-9-])*$
+    Description: '[ Optional, only needed if using Route53 ] The sub-domain name of your OHDSI implementation.  This sub-domain will be prepended your specified Hosted Zone (e.g. ohdsi in ohdsi.example.edu).'
+    Type: String
+  DatabaseType:
+    AllowedValues:
+      - "Highly Available"
+      - "Single Instance"
+    #  - "Serverless"
+    Default: "Single Instance"
+    Description: Specifies whether to deploy the AWS Aurora PostgreSQL WebAPI database in a Multi-AZ configuration.
+    Type: String
+  DatabaseInstanceType:
+    AllowedValues:
+    #  - db.t3.medium
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+    ConstraintDescription: Must be a valid RDS instance class.
+    Default: db.r4.large
+    Description: The Amazon RDS database instance class (determines processing power and memory capacity of the database).
+    Type: String
+  RedshiftInstanceType:
+    Type: String
+    Description: DC instance types provide faster, but smaller storage.  DS instance types provide larger, but slower storage.
+    AllowedValues:
+      - dc2.large
+      - dc2.8xlarge
+      - ds2.xlarge
+      - ds2.8xlarge
+      - dc1.large
+    Default: dc2.large
+  NumRedshiftNodes:
+    ConstraintDescription: Must be a number between 1 and 32.
+    Default: 1
+    MaxValue: 32
+    MinValue: 1
+    Description: "[ Required ] Specifies the  number of nodes in your Redshift cluster."
+    Type: Number
+  DatabaseMasterPassword:
+    AllowedPattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.{8,41}$)[a-zA-Z\d~#%^*_+,-]*$
+    ConstraintDescription: Must have a length of 8-41 and be letters (upper and lower), numbers, and/or these special characters ~#%^*_+,-
+    Description: '[ Required ] This password will be used for the master user of the Aurora PostgreSQL WebAPI database and the Redshift OMOP CDM data warehouse.  It must have a length of 8-41 and have at least 1 uppercase, 1 lowercase, 1 number, and optionally include these special characters ~#%^*_+,-.'
+    MaxLength: 41
+    MinLength: 8
+    NoEcho: true
+    Type: String
+  Sources:
+    Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9,])*$
+    Default: CMSDESynPUF23mchina,CMSDESynPUF100kchina,CMSDESynPUF1kchina,synthea23mchina,synthea100kchina,synthea1kchina
+  SourcesBucket:
+    Description: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
+    Default: ohdsi-sample-data
+
+  WebInstanceType:
+    AllowedValues:
+      - m5.large 
+      - m5.xlarge 
+      - m5.2xlarge 
+      - c5.large 
+      - c5.xlarge 
+      - c5.2xlarge 
+      - r5.large 
+      - r5.xlarge 
+    ConstraintDescription: Must be a valid Amazon EC2 instance type.
+    Default: m5.large
+    Description: The Amazon EC2 instance type for your web instances.
+    Type: String
+  WebAsgMax:
+    MaxValue: 30
+    MinValue: 1
+    ConstraintDescription: Must be a number between 1 and 30.
+    Default: 2
+    Description: Specifies the maximum number of EC2 instances in the Web Autoscaling Group.  Must be greater than or equal to the Minimum Atlas/WebAPI Instances.
+    Type: Number
+  WebAsgMin:
+    ConstraintDescription: Must be a number between 0 and 10.
+    MaxValue: 10
+    MinValue: 1    
+    Default: 2
+    Description: Specifies the minimum number of EC2 instances in the Web Autoscaling Group.  A value of >1 will create a highly available environment by placing instances in multiple availability zones.
+    Type: Number
+  ExampleStudies:
+    Type: String
+    Description: "Include example studies in Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true  
+  AtlasSecurity:
+    Type: String
+    Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: true
+
+  RStudioInstanceType:
+    Type: String
+    Description: Choose an instance with about 0.75GB of memory per concurrent user.
+    AllowedValues:
+      - t2.medium 
+      - t2.large 
+      - t2.xlarge 
+      - t2.2xlarge 
+      - t3.medium 
+      - t3.large 
+      - t3.xlarge 
+      - t3.2xlarge 
+      - m4.large 
+      - m4.xlarge 
+      - m4.2xlarge 
+      - m4.4xlarge 
+      - m4.10xlarge 
+      - m4.16xlarge 
+      - m5.large 
+      - m5.xlarge 
+      - m5.2xlarge 
+      - m5.4xlarge 
+      - m5.12xlarge 
+      - m5.24xlarge 
+      - c4.large 
+      - c4.xlarge 
+      - c4.2xlarge 
+      - c4.4xlarge 
+      - c4.8xlarge 
+      - c5.large 
+      - c5.xlarge 
+      - c5.2xlarge 
+      - c5.4xlarge 
+      - c5.9xlarge 
+      - c5.18xlarge
+      - r4.large 
+      - r4.xlarge 
+      - r4.2xlarge 
+      - r4.4xlarge 
+      - r4.8xlarge 
+      - r4.16xlarge
+      - r5.large 
+      - r5.xlarge 
+      - r5.2xlarge 
+      - r5.4xlarge 
+      - r5.8xlarge 
+      - r5.16xlarge 
+      - g2.2xlarge
+      - g2.8xlarge
+      - p2.xlarge
+      - p2.8xlarge
+      - p2.16xlarge
+      - g3.4xlarge
+      - g3.8xlarge
+      - g3.16xlarge
+    ConstraintDescription: Valid instance type in the t2, m5, c5, r4, g2, p2, and g3 families
+    Default: t3.xlarge
+  RStudioHomeDirectorySize:
+    Description: '[ Required ] The amount of encrypted disk space, in GBs, allocated to store RStudio users local data.'
+    Type: Number
+    Default: 50
+    MaxValue: 16000
+    MinValue: 20
+  RStudioUserList:
+    Description: '[ Required ] Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the RStudio Server.  The first user in the list will be given sudoers access.'
+    Type: 'String'
+    NoEcho: true
+    ConstraintDescription: "Usernames can contain letters and numbers.  Passwords can contain letters, numbers and these characters #&*." 
+    AllowedPattern: ([A-Za-z\d]+,)+([A-Za-z\d#&*.,]+)
+  OMOPv:
+    Description: The OHDSI CommonDataModel GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '5.3.0'
+  Atlasv:
+    Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.7.5'
+  WebAPIv:
+    Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.7.5'
+  Achillesv:
+    Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.6.3'
+  PatientLevelPredictionv:
+    Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '3.0.6'
+  CohortMethodv:
+    Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '3.1.0'
+  SqlRenderv:
+    Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.6.2'
+  DatabaseConnectorv:
+    Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.4.1'
+  DatabaseConnectorJarsv:
+    Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  OhdsiRToolsv:
+    Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.7.0'
+  FeatureExtractionv:
+    Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.2.5'
+  Cyclopsv:
+    Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.2'
+  EmpiricalCalibrationv:
+    Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.0'
+  OhdsiSharingv:
+    Description: OHDSI OhdsiSharing GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.1.3'
+  MethodEvaluationv:
+    Description: OHDSI MethodEvaluation GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.1.0'
+  Hydrav:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.0.5'
+  PredictionComparisonv:
+    Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  Eunomiav:
+    Description: OHDSI Eunomia GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC into which to deploy OHDSI
+  SubnetPublicA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your presentation tier (first AZ).
+  SubnetPublicB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your presentation tier (second AZ).
+  SubnetAppA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your application tier (first AZ).
+  SubnetAppB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your application tier (second AZ).
+  SubnetDataA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your database tier (first AZ).
+  SubnetDataB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Within your specified VPC, the subnet to use for your database tier (second AZ).
+
+
+
+Conditions:
+  DeployRoute53: 
+    !Equals [ true, !Ref UseRoute53Boolean ]
+  DeployACM: !And 
+    - !Equals [ true, !Ref UseACMBoolean ]
+    - !Condition DeployRoute53
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/01-vpc-ohdsi-chinaprivate.yaml
+      Parameters:
+        AccessCidr: !Ref 'AccessCidr'
+        UseACMBoolean: !Ref 'UseACMBoolean'
+        UseRoute53Boolean: !Ref 'UseRoute53Boolean'
+        SourcesBucket: !Ref SourcesBucket
+        WebPort: !Ref WebPort
+        VPCId: !Ref VPCId
+        SubnetPublicA: !Ref SubnetPublicA
+
+
+  certificate:
+    Condition: DeployACM
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        R53HostedZoneId: !Ref 'HostedZoneId'
+        R53DomainName: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName]]
+        SubjectAlternativeNames: !Join [',', [!Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]], !Join ['', ['jupyter.', !Ref DomainName, '.', !Ref HostedZoneName]]]]
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/01-certificate-ohdsi-china.yaml
+
+  DatabasesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPCStack
+    Properties:
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/02-databases-ohdsi-china.yaml
+      Parameters:
+        DatabaseMasterPassword:
+          !Ref DatabaseMasterPassword
+        DatabaseInstanceType:
+          !Ref DatabaseInstanceType
+        RedshiftInstanceType: 
+          !Ref 'RedshiftInstanceType'
+        NumRedshiftNodes: 
+          !Ref 'NumRedshiftNodes'
+        DatabaseType:
+          !Ref DatabaseType
+
+        SubnetDataA:
+          !Ref SubnetDataA
+        SubnetDataB:
+          !Ref SubnetDataB
+        SGData:
+          !GetAtt 'VPCStack.Outputs.SGData'
+        RSRoleArn: 
+          !GetAtt 'VPCStack.Outputs.RSRoleArn'
+
+  RStudioStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DatabasesStack
+    Properties:
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/02-rstudio-ohdsi-china.yaml
+      Parameters:
+        RStudioInstanceProfile: !GetAtt 'VPCStack.Outputs.RStudioInstanceProfile'
+        VPCSubnet: !Ref SubnetAppA
+        VPCId: !Ref VPCId
+        RStudioSecurityGroup: !GetAtt 'VPCStack.Outputs.SGApp'
+        InstanceType: !Ref 'RStudioInstanceType'
+        HomeDirectorySize: !Ref 'RStudioHomeDirectorySize'
+        UserList: !Ref 'RStudioUserList'
+        KeyPair: !Ref EC2KeyName
+        Hydrav: !Ref 'Hydrav'
+        PatientLevelPredictionv: !Ref 'PatientLevelPredictionv'
+        CohortMethodv: !Ref 'CohortMethodv'
+        SqlRenderv: !Ref 'SqlRenderv'
+        DatabaseConnectorv: !Ref 'DatabaseConnectorv'
+        DatabaseConnectorJarsv: !Ref 'DatabaseConnectorJarsv'
+        OhdsiRToolsv: !Ref 'OhdsiRToolsv'
+        FeatureExtractionv: !Ref 'FeatureExtractionv'
+        Cyclopsv: !Ref 'Cyclopsv'
+        EmpiricalCalibrationv: !Ref 'EmpiricalCalibrationv'
+        OhdsiSharingv: !Ref 'OhdsiSharingv'
+        MethodEvaluationv: !Ref 'MethodEvaluationv'
+        Achillesv: !Ref 'Achillesv'
+        PredictionComparisonv: !Ref 'PredictionComparisonv'
+        Eunomiav: !Ref 'Eunomiav'
+        RDSEndpoint: !GetAtt 'DatabasesStack.Outputs.RDSEndpoint'
+        RedshiftEndpoint: !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
+        Sources: !Ref Sources
+        DatabaseMasterPassword: !Ref DatabaseMasterPassword
+        EBEndpoint: !Ref EBEndpoint
+
+  ohdsielasticbeanstalk:
+    DependsOn: [ RStudioStack ]
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EBBucket: !Join [ "", [ !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'SubnetPublicA'] ], '-atlas' ] ]
+        DatabaseMasterPassword:
+          !Ref DatabaseMasterPassword
+        Sources:
+          !Ref Sources
+        SourcesBucket:
+          !Ref SourcesBucket
+        SslCertificate:
+          !If [ DeployACM, !GetAtt [ certificate, Outputs.CertificateArn ], '' ]
+        WebPort:
+          !Ref WebPort
+        WebAsgMax:
+          !Ref WebAsgMax
+        WebAsgMin:
+          !Ref WebAsgMin
+        WebInstanceType:
+          !Ref WebInstanceType
+        EBEndpoint:
+          !Ref EBEndpoint
+        UseRoute53Boolean:
+          !Ref UseRoute53Boolean
+        UseACMBoolean:
+          !Ref UseACMBoolean
+        HostedZoneName:
+          !If [ DeployRoute53, !Ref HostedZoneName, '' ]
+        DomainName:
+          !If [ DeployRoute53, !Ref DomainName, '' ]
+        EC2KeyName:
+          !Ref EC2KeyName
+        OMOPv:
+          !Ref 'OMOPv'
+        Atlasv: 
+          !Ref 'Atlasv'
+        WebAPIv: 
+          !Ref 'WebAPIv'
+        SqlRenderv: 
+          !Ref 'SqlRenderv'
+        DatabaseConnectorv: 
+          !Ref 'DatabaseConnectorv'
+        DatabaseConnectorJarsv: 
+          !Ref 'DatabaseConnectorJarsv'
+        Achillesv: 
+          !Ref 'Achillesv'
+        OhdsiRToolsv: 
+          !Ref 'OhdsiRToolsv'
+        VPCId:
+          !Ref VPCId
+        SubnetPublicA:
+          !Ref SubnetPublicA
+        SubnetPublicB:
+          !Ref SubnetPublicB
+        SubnetAppA:
+          !Ref SubnetAppA
+        SubnetAppB:
+          !Ref SubnetAppB
+        SGPublic:
+          !GetAtt 'VPCStack.Outputs.SGPublic'
+        SGApp:
+          !GetAtt 'VPCStack.Outputs.SGApp'
+        EBServiceRole:
+          !GetAtt 'VPCStack.Outputs.EBServiceRole'      
+        EBInstanceProfile:
+          !GetAtt 'VPCStack.Outputs.EBInstanceProfile'
+        TempEC2InstanceProfile:
+          !GetAtt 'VPCStack.Outputs.TempEC2InstanceProfile'
+        RStudioTargetGroupArn:
+          !GetAtt 'RStudioStack.Outputs.RStudioTargetGroupArn'
+        JupyterTargetGroupArn:
+          !GetAtt 'RStudioStack.Outputs.JupyterTargetGroupArn'
+        RDSEndpoint: 
+          !GetAtt 'DatabasesStack.Outputs.RDSEndpoint'
+        RedshiftEndpoint: 
+          !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
+        RSRoleArn: 
+          !GetAtt 'VPCStack.Outputs.RSRoleArn'
+        PrivateDeployment: 'true'
+        AtlasSecurity: !Ref AtlasSecurity
+        ExampleStudies: !Ref ExampleStudies
+        UserList: !Ref 'RStudioUserList'
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/03-application-ohdsi-china.yaml
+  route53:
+    Condition: DeployRoute53
+    DependsOn: ohdsielasticbeanstalk
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        DnsEndpoint:
+          !Join ['', [!Ref EBEndpoint, '.', !Ref 'AWS::Region', '.elasticbeanstalk.com']]
+        HostedZoneId:
+          !Ref HostedZoneId
+        HostedZoneName:
+          !Ref HostedZoneName
+        DomainName:
+          !Ref DomainName
+      TemplateURL: https://ohdsi-sample-data.s3.cn-northwest-1.amazonaws.com.cn/03-route53-ohdsi-china.yaml
+
+Outputs:
+  AtlasURL:
+    Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']], !Join ['', ['http://', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']]], !Join ['', ['http://', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.eb.amazonaws.com.cn', ':', !Ref WebPort ]]]
+  RStudioURL:
+    Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']], !Join ['', ['http://', 'rstudio.', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']]], !Join ['', ['http://', 'rstudio.', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.eb.amazonaws.com.cn', ':', !Ref WebPort ]]]
+  JupyterURL:
+    Value: !If [DeployRoute53, !If [DeployACM, !Join ['', ['https://', 'jupyter.', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']], !Join ['', ['http://', 'jupyter.', !Ref DomainName, '.', !Ref HostedZoneName, ':', !Ref WebPort, '/']]], !Join ['', ['http://', 'jupyter.', !Ref EBEndpoint, '.', !Ref 'AWS::Region', '.eb.amazonaws.com.cn', ':', !Ref WebPort ]]]
+  DeploymentLog:
+    Value: !Join ['', ['https://cn-northwest-1.console.amazonaws.cn/cloudwatch/home?region=', !Ref 'AWS::Region', '#logEventViewer:group=ohdsi-temporary-ec2-instance-build-log;stream=', !Ref EBEndpoint, '-build-log']]
