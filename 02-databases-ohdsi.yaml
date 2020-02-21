@@ -12,11 +12,12 @@ Description: This CloudFormation Template deploys a complete OHDSI environment. 
   depends on the OHDSI-VPC CloudFormation Template.
 
 Parameters:
-  MultiAZDatabase:
+  DatabaseType:
     AllowedValues:
-      - true
-      - false
-    Default: false
+      - "Highly Available"
+      - "Single Instance"
+      - "Serverless"
+    Default: "Single Instance"
     Description: Specifies whether a to deploy the AWS Aurora MySQL Database in Multi-AZ configuration.
     Type: String
   DatabaseInstanceType:
@@ -66,13 +67,15 @@ Parameters:
 
 Conditions:
   DeployMultiAZDB: 
-    !Equals [ true, !Ref MultiAZDatabase ] 
-  NotDeployMultiAZDB: 
-    !Equals [ false, !Ref MultiAZDatabase ]
+    !Equals [ "Highly Available", !Ref DatabaseType ] 
   SingleNodeRedshift:
     !Equals [ '1', !Ref NumRedshiftNodes ]
   MultiNodeRedshift:
     !Not [ !Equals [ '1', !Ref NumRedshiftNodes ] ]
+  Serverless:
+    !Equals [ "Serverless", !Ref DatabaseType ]
+  NotServerless:
+    !Not [ !Equals [ "Serverless", !Ref DatabaseType ] ]
 
 Resources:
 # Deploys the RDS Aurora Postgres cluster used to store the application data for WebAPI.
@@ -83,6 +86,7 @@ Resources:
       MasterUserPassword: !Ref DatabaseMasterPassword
       Engine: aurora-postgresql
       EngineVersion: 10.7
+      EngineMode: !If [ Serverless, 'serverless', 'provisioned' ]
       StorageEncrypted: 'True'
       Port: 5432
       DBSubnetGroupName:
@@ -92,6 +96,7 @@ Resources:
       VpcSecurityGroupIds:
         - !Ref SGData
   RDSDBInstance1:
+    Condition: NotServerless
     Type: AWS::RDS::DBInstance
     Properties:
       DBSubnetGroupName:
@@ -142,34 +147,15 @@ Resources:
         - !Ref SubnetDataB
 
 
-  RedshiftClusterSingle: 
-    Condition: SingleNodeRedshift
+  RedshiftCluster: 
     Type: "AWS::Redshift::Cluster"
     Properties:
       DBName: "mycdm"
       MasterUsername: "master"
       MasterUserPassword: !Ref DatabaseMasterPassword
       NodeType: !Ref RedshiftInstanceType
-      ClusterType: "single-node"
-      Encrypted: "True"
-      PubliclyAccessible: "False"
-      ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
-      IamRoles: 
-        - !Ref RSRoleArn
-      VpcSecurityGroupIds: 
-        - !Ref SGData
-      ClusterSubnetGroupName:
-        Ref: RedshiftSubnetGroup
-  RedshiftClusterMulti: 
-    Condition: MultiNodeRedshift
-    Type: "AWS::Redshift::Cluster"
-    Properties:
-      DBName: "mycdm"
-      MasterUsername: "master"
-      MasterUserPassword: !Ref DatabaseMasterPassword
-      NodeType: !Ref RedshiftInstanceType
-      ClusterType: "multi-node"
-      NumberOfNodes: !Ref NumRedshiftNodes
+      ClusterType: !If [ MultiNodeRedshift, "multi-node", "single-node" ]
+      NumberOfNodes: !If [ MultiNodeRedshift, !Ref NumRedshiftNodes, "" ]
       Encrypted: "True"
       PubliclyAccessible: "False"
       ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
@@ -194,11 +180,11 @@ Resources:
         - 
           ParameterName: "require_ssl"
           ParameterValue: "true"
-
-
+          ParameterName: "statement_timeout"
+          ParameterValue: "3600000"
 
 Outputs:
   RDSEndpoint: 
     Value: !GetAtt RDSCluster.Endpoint.Address 
   RedshiftEndpoint: 
-    Value: !If [ MultiNodeRedshift, !GetAtt RedshiftClusterMulti.Endpoint.Address, !GetAtt RedshiftClusterSingle.Endpoint.Address ]
+    Value: !GetAtt RedshiftCluster.Endpoint.Address 

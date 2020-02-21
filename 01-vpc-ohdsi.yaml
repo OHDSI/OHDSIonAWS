@@ -34,10 +34,6 @@ Parameters:
     Type: String
     AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
     Default: ohdsi-sample-data
-  SageMakerBucket:
-    Description: Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you.
-    Type: 'String'
-    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
 
   VPCcidr:
     Description: (optional to change) CIDR IP Range for your REDCap VPC.
@@ -553,6 +549,8 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: /
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
   EC2RolePolicies:
     Type: AWS::IAM::Policy
     Properties:
@@ -620,6 +618,7 @@ Resources:
       ManagedPolicyArns: 
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
         - "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+        - "arn:aws:iam::aws:policy/ComprehendMedicalFullAccess"
   RStudioRolePolicies:
     Type: AWS::IAM::Policy
     Properties:
@@ -638,10 +637,6 @@ Resources:
               - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetd3e13a98'] ], '-atlas', '/*' ] ]
               - !Join [ "", [ 'arn:aws:s3:::', !Ref SourcesBucket ] ]
               - !Join [ "", [ 'arn:aws:s3:::', !Ref SourcesBucket, '/*' ] ]    
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref SageMakerBucket ] ]    
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref SageMakerBucket, '/*' ] ]
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetbae43ff1'] ], '-sagemakerplp' ] ]
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetbae43ff1'] ], '-sagemakerplp/*' ] ]
           - Effect: Allow
             Action: 
               - "iam:GetRole"

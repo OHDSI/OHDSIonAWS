@@ -34,10 +34,6 @@ Parameters:
     Type: String
     AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
     Default: ohdsi-sample-data
-  SageMakerBucket:
-    Description: Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you.
-    Type: 'String'
-    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
 
   VPCId:
     Type: AWS::EC2::VPC::Id
@@ -431,10 +427,6 @@ Resources:
               - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'SubnetPublicA'] ], '-atlas', '/*' ] ]
               - !Join [ "", [ 'arn:aws:s3:::', !Ref SourcesBucket ] ]
               - !Join [ "", [ 'arn:aws:s3:::', !Ref SourcesBucket, '/*' ] ]    
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref SageMakerBucket ] ]    
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref SageMakerBucket, '/*' ] ]
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'SubnetPublicA'] ], '-sagemakerplp' ] ]
-              - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'SubnetPublicA'] ], '-sagemakerplp/*' ] ]
           - Effect: Allow
             Action: 
               - "iam:GetRole"

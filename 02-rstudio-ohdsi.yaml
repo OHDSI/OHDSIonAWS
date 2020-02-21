@@ -96,10 +96,6 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
   RStudioInstanceProfile:
     Type: String
-  SageMakerBucket:
-    Description: Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you.
-    Type: 'String'
-    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
   RDSEndpoint: 
     Type: String
   RedshiftEndpoint: 
@@ -419,7 +415,7 @@ Resources:
                   respawn
 
                   # run the server
-                  exec /usr/local/bin/jupyterhub --port=80
+                  exec /usr/local/bin/jupyterhub --port=80 --Spawner.default_url='/lab'
                 mode: 000644
                 owner: root
                 group: root                
@@ -450,221 +446,211 @@ Resources:
               Encrypted: "true"
               VolumeSize: !Ref HomeDirectorySize
       UserData:
-        Fn::Base64: !Sub 
-          - | 
-            #!/bin/bash
-            RSTUDIO_URL="https://download2.rstudio.org/server/centos6/x86_64/rstudio-server-rhel-1.2.1335-x86_64.rpm"
-            SHINY_URL="https://download3.rstudio.org/centos6.3/x86_64/shiny-server-1.5.9.923-x86_64.rpm"
-            RSTUDIOPORT=8787
-            users="${UserList}"
-            SMBUCKET=${SageMakerBucket}
-            SMROLEARN=${SageMakerRole}
-            MIN_USER_ID=400 
-            export SOURCES=${Sources}
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          RSTUDIO_URL="https://download2.rstudio.org/server/centos6/x86_64/rstudio-server-rhel-1.2.1335-x86_64.rpm"
+          SHINY_URL="https://download3.rstudio.org/centos6.3/x86_64/shiny-server-1.5.9.923-x86_64.rpm"
+          RSTUDIOPORT=8787
+          users="${UserList}"
+          SMROLEARN=${SageMakerRole}
+          MIN_USER_ID=400 
+          export SOURCES=${Sources}
 
-            # Install SSM client
-            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-            restart amazon-ssm-agent
-            
-            #Use cfn-init to grab and apply the files specified in the above UserData
-            /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource RStudioInstance --region ${AWS::Region}
+          # Install SSM client
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          restart amazon-ssm-agent
+          
+          #Use cfn-init to grab and apply the files specified in the above UserData
+          /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource RStudioInstance --region ${AWS::Region}
 
-            aws s3 ls $SMBUCKET
-            if [ $? != 0 ] || [ "$SMBUCKET" == "" ]; then
-              SMBUCKET=${AutoSMBucket}
-              aws s3 mb s3://$SMBUCKET
-            fi
+          sudo mkfs -t ext4 /dev/sdm
+          mkdir /mnt/tmp
+          sudo mount /dev/sdm /mnt/tmp
+          cp -a /home/. /mnt/tmp
+          umount /dev/sdm
+          mount /dev/sdm /home
+          echo "/dev/sdm /home ext4 defaults,nofail 0 2" >> /etc/fstab
 
-            sudo mkfs -t ext4 /dev/sdm
-            mkdir /mnt/tmp
-            sudo mount /dev/sdm /mnt/tmp
-            cp -a /home/. /mnt/tmp
-            umount /dev/sdm
-            mount /dev/sdm /home
-            echo "/dev/sdm /home ext4 defaults,nofail 0 2" >> /etc/fstab
+          yum erase -y java-1.7.0-openjdk java-1.7.0-openjdk-devel
+          yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
 
-            yum erase -y java-1.7.0-openjdk java-1.7.0-openjdk-devel
-            yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
+          export MAKE='make -j 8'
+          sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
+          sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
+          if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
+            sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
+          fi
+          if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
+            sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
+          fi
 
-            export MAKE='make -j 8'
-            sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
-            sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
-            if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
-              sudo cp /usr/lib64/R/etc/Makeconf.rpmnew /usr/lib64/R/etc/Makeconf
-            fi
-            if [ -f /usr/lib64/R/etc/ldpaths.rpmnew ]; then
-              sudo cp /usr/lib64/R/etc/ldpaths.rpmnew /usr/lib64/R/etc/ldpaths
-            fi
+          mkdir /mnt/r-stuff
+          cd /mnt/r-stuff
 
-            mkdir /mnt/r-stuff
-            cd /mnt/r-stuff
+          pushd .
+          mkdir R-latest
+          cd R-latest
+          wget https://cran.r-project.org/src/base/R-3/R-3.5.3.tar.gz
+          tar -xzf R-3.5.3.tar.gz
+          #Trying out Python
+          sudo yum install -y python36 python36-devel python36-pip
+          sudo yum install -y gcc gcc-c++ gcc-gfortran
+          sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+          cd R-3*
+          ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
+          make -j 8
+          sudo make install
+          sudo su << BASH_SCRIPT
+          echo 'export PATH=${!PWD}/bin:$PATH' >> /etc/profile
+          BASH_SCRIPT
+          popd
 
-            pushd .
-            mkdir R-latest
-            cd R-latest
-            wget https://cran.r-project.org/src/base/R-3/R-3.5.3.tar.gz
-            tar -xzf R-3.5.3.tar.gz
-            #Trying out Python
-            sudo yum install -y python36 python36-devel python36-pip
-            sudo yum install -y gcc gcc-c++ gcc-gfortran
-            sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
-            cd R-3*
-            ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
-            make -j 8
-            sudo make install
-            sudo su << BASH_SCRIPT
-            echo 'export PATH=${!PWD}/bin:$PATH' >> /etc/profile
-            BASH_SCRIPT
-            popd
+          sudo sed -i 's/make/make -j 8/g' /usr/lib64/R/etc/Renviron
 
-            sudo sed -i 's/make/make -j 8/g' /usr/lib64/R/etc/Renviron
+          # set unix environment variables
+          sudo su << BASH_SCRIPT
+          echo '
+          export JAVA_HOME=/etc/alternatives/jre
+          ' >> /etc/profile
+          BASH_SCRIPT
+          sudo sh -c "source /etc/profile"
 
-            # set unix environment variables
-            sudo su << BASH_SCRIPT
-            echo '
-            export JAVA_HOME=/etc/alternatives/jre
-            ' >> /etc/profile
-            BASH_SCRIPT
-            sudo sh -c "source /etc/profile"
-
-            # fix java binding - R and packages have to be compiled with the same java version as hadoop
-            sudo R CMD javareconf
+          # fix java binding - R and packages have to be compiled with the same java version as hadoop
+          sudo R CMD javareconf
 
 
-            RSTUDIO_FILE=$(basename $RSTUDIO_URL)
-            wget $RSTUDIO_URL
-            sudo yum install --nogpgcheck -y $RSTUDIO_FILE
-            # change port - 8787 will not work for many companies
-            sudo sh -c "echo 'www-port=$RSTUDIOPORT' >> /etc/rstudio/rserver.conf"
-            sudo sh -c "echo 'auth-minimum-user-id=$MIN_USER_ID' >> /etc/rstudio/rserver.conf"
-            sudo perl -p -i -e "s/= 5../= 100/g" /etc/pam.d/rstudio
-            sudo rstudio-server stop || true
-            sudo rstudio-server start
+          RSTUDIO_FILE=$(basename $RSTUDIO_URL)
+          wget $RSTUDIO_URL
+          sudo yum install --nogpgcheck -y $RSTUDIO_FILE
+          # change port - 8787 will not work for many companies
+          sudo sh -c "echo 'www-port=$RSTUDIOPORT' >> /etc/rstudio/rserver.conf"
+          sudo sh -c "echo 'auth-minimum-user-id=$MIN_USER_ID' >> /etc/rstudio/rserver.conf"
+          sudo perl -p -i -e "s/= 5../= 100/g" /etc/pam.d/rstudio
+          sudo rstudio-server stop || true
+          sudo rstudio-server start
 
-            #Grab R binaries   
-            cd /usr/lib64/R/library
-            wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-3.5.3.tar.gz
-            tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
+          #Grab R binaries   
+          cd /usr/lib64/R/library
+          wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-3.5.3.tar.gz
+          tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
 
-            #Install R dependencies if any of the specified versions differ
-            sudo Rscript /tmp/rdependencies.r
+          #Install R dependencies if any of the specified versions differ
+          sudo Rscript /tmp/rdependencies.r
 
-            SHINY_FILE=$(basename $SHINY_URL)
-            wget $SHINY_URL
-            sudo yum install --nogpgcheck -y $SHINY_FILE
+          SHINY_FILE=$(basename $SHINY_URL)
+          wget $SHINY_URL
+          sudo yum install --nogpgcheck -y $SHINY_FILE
 
-            #sudo R --no-save <<R_SCRIPT
-            #install.packages(c('shiny','rmarkdown'), repos="http://cran.rstudio.com")
-            #R_SCRIPT
+          #sudo R --no-save <<R_SCRIPT
+          #install.packages(c('shiny','rmarkdown'), repos="http://cran.rstudio.com")
+          #R_SCRIPT
 
-            # Install Jupyter
-            echo "127.0.0.1  `hostname`"  >> /etc/hosts
-            sudo yum install -y nodejs npm --enablerepo=epel
-            npm config set strict-ssl false
-            pip-3.6 install jupyterhub
-            npm install -g configurable-http-proxy
-            pip-3.6 install "ipython[notebook]"
-            pip-3.6 install jupyterlab
-            jupyter serverextension enable --py jupyterlab
+          # Install Jupyter
+          export PATH=$PATH:/usr/local/bin
+          echo "127.0.0.1  `hostname`"  >> /etc/hosts
+          sudo yum install -y nodejs npm --enablerepo=epel
+          npm config set strict-ssl false
+          pip-3.6 install jupyterhub
+          npm install -g configurable-http-proxy
+          pip-3.6 install "ipython[notebook]"
+          pip-3.6 install jupyterlab
+          jupyter serverextension enable --py jupyterlab
 
-            sudo R --no-save << R_SCRIPT
-            install.packages('IRkernel') 
-            IRkernel::installspec(user = FALSE)
-            R_SCRIPT
+          R --no-save << R_SCRIPT
+          install.packages('IRkernel', repos = "http://cran.us.r-project.org") 
+          IRkernel::installspec(user = FALSE)
+          R_SCRIPT
 
-            sudo initctl start jupyter-server
+          sudo initctl start jupyter-server
 
-            sudo yum install -y cairo-devel
-            sudo yum install -y python-scipy
-            sudo pip install scipy
-            sudo pip install sklearn
-            sudo pip install torch torchvision
-            sudo pip install boto3==1.7.52
-            sudo pip install sagemaker
-            sudo pip install mxnet
-            sudo pip install pandas
+          sudo yum install -y cairo-devel
+          sudo yum install -y python-scipy
+          sudo pip install scipy
+          sudo pip install sklearn
+          sudo pip install torch torchvision
+          sudo pip install boto3==1.7.52
+          sudo pip install sagemaker
+          sudo pip install mxnet
+          sudo pip install pandas
 
-            # Set site-wide grDevices 'bitmap' type to 'cairo' to enable the correct generation of PNG images
-            sudo echo "options(bitmapType=\"cairo\")
-            " > /usr/lib64/R/etc/Rprofile.site
+          # Set site-wide grDevices 'bitmap' type to 'cairo' to enable the correct generation of PNG images
+          sudo echo "options(bitmapType=\"cairo\")
+          " > /usr/lib64/R/etc/Rprofile.site
 
-            # Install all of the OHDSI R Libraries
-            sudo R --no-save << R_SCRIPT
-            library(devtools)
-            try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", ref = "${SqlRenderv}", upgrade = "never")})
-            try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", ref = "v${DatabaseConnectorv}", upgrade = "never")})
-            try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", ref = "v${DatabaseConnectorJarsv}", upgrade = "never")})
-            try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
-            try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
-            try(if(("FeatureExtraction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("FeatureExtraction") != "${FeatureExtractionv}")){devtools::install_github("ohdsi/FeatureExtraction", ref = "v${FeatureExtractionv}", upgrade = "never")})
-            try(if(("Cyclops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Cyclops") != "${Cyclopsv}")){devtools::install_version("Cyclops", ref = "${Cyclopsv}", upgrade = "never")})
-            try(if("BigKnn" %in% rownames(installed.packages()) == FALSE){devtools::install_github("ohdsi/BigKnn", upgrade = "never")})
-            try(if(("CohortMethod" %in% rownames(installed.packages()) == FALSE) || (packageVersion("CohortMethod") != "${CohortMethodv}")){devtools::install_github("ohdsi/CohortMethod", ref = "v${CohortMethodv}", upgrade = "never")})
-            try(if(("EmpiricalCalibration" %in% rownames(installed.packages()) == FALSE) || (packageVersion("EmpiricalCalibration") != "${EmpiricalCalibrationv}")){devtools::install_version("EmpiricalCalibration", ref = "${EmpiricalCalibrationv}", upgrade = "never")})
-            try(if(("OhdsiSharing" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiSharing") != "${OhdsiSharingv}")){devtools::install_github("ohdsi/OhdsiSharing", ref = "v${OhdsiSharingv}", upgrade = "never")})
-            try(if(("MethodEvaluation" %in% rownames(installed.packages()) == FALSE) || (packageVersion("MethodEvaluation") != "${MethodEvaluationv}")){devtools::install_github("ohdsi/MethodEvaluation", ref = "v${MethodEvaluationv}", upgrade = "never")})
-            try(if(("Hydra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hydra") != "${Hydrav}")){devtools::install_github("ohdsi/Hydra", ref = "v${Hydrav}", upgrade = "never")})
-            try(if(("PatientLevelPrediction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PatientLevelPrediction") != "${PatientLevelPredictionv}")){devtools::install_github("ohdsi/PatientLevelPrediction", ref = "v${PatientLevelPredictionv}", upgrade = "never")})
-            try(if(("PredictionComparison" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PredictionComparison") != "${PredictionComparisonv}")){devtools::install_github("ohdsi/PredictionComparison", ref = "v${PredictionComparisonv}", upgrade = "never")})
-            try(if(("Eunomia" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Eunomia") != "${Eunomiav}")){devtools::install_github("ohdsi/Eunomia", ref = "v${Eunomiav}", upgrade = "never")})
-            R_SCRIPT
+          # Install all of the OHDSI R Libraries
+          sudo R --no-save << R_SCRIPT
+          library(devtools)
+          try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", version = "${SqlRenderv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", version = "${DatabaseConnectorv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "v${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
+          try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
+          try(if(("FeatureExtraction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("FeatureExtraction") != "${FeatureExtractionv}")){devtools::install_github("ohdsi/FeatureExtraction", ref = "v${FeatureExtractionv}", upgrade = "never")})
+          try(if(("Cyclops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Cyclops") != "${Cyclopsv}")){devtools::install_version("Cyclops", version = "${Cyclopsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if("BigKnn" %in% rownames(installed.packages()) == FALSE){devtools::install_github("ohdsi/BigKnn", upgrade = "never")})
+          try(if(("CohortMethod" %in% rownames(installed.packages()) == FALSE) || (packageVersion("CohortMethod") != "${CohortMethodv}")){devtools::install_github("ohdsi/CohortMethod", ref = "v${CohortMethodv}", upgrade = "never")})
+          try(if(("EmpiricalCalibration" %in% rownames(installed.packages()) == FALSE) || (packageVersion("EmpiricalCalibration") != "${EmpiricalCalibrationv}")){devtools::install_version("EmpiricalCalibration", version = "${EmpiricalCalibrationv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("OhdsiSharing" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiSharing") != "${OhdsiSharingv}")){devtools::install_github("ohdsi/OhdsiSharing", ref = "v${OhdsiSharingv}", upgrade = "never")})
+          try(if(("MethodEvaluation" %in% rownames(installed.packages()) == FALSE) || (packageVersion("MethodEvaluation") != "${MethodEvaluationv}")){devtools::install_github("ohdsi/MethodEvaluation", ref = "v${MethodEvaluationv}", upgrade = "never")})
+          try(if(("Hydra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hydra") != "${Hydrav}")){devtools::install_github("ohdsi/Hydra", ref = "v${Hydrav}", upgrade = "never")})
+          try(if(("PatientLevelPrediction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PatientLevelPrediction") != "${PatientLevelPredictionv}")){devtools::install_github("ohdsi/PatientLevelPrediction", ref = "v${PatientLevelPredictionv}", upgrade = "never")})
+          try(if(("PredictionComparison" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PredictionComparison") != "${PredictionComparisonv}")){devtools::install_github("ohdsi/PredictionComparison", ref = "v${PredictionComparisonv}", upgrade = "never")})
+          try(if(("Eunomia" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Eunomia") != "${Eunomiav}")){devtools::install_github("ohdsi/Eunomia", ref = "v${Eunomiav}", upgrade = "never")})
+          R_SCRIPT
 
-            region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`
-            count=1
-            for i in $(echo $users | sed "s/,/ /g")
-            do
-                if [ `expr $count % 2` -eq "1" ]; then
-                  username=$i
-                  let count+=1
-                  continue
-                else
-                  sudo adduser $username
-                  sudo sh -c "echo '$i' | passwd --stdin $username"
-                  sudo -u $username mkdir /home/$username/.aws
-                  sudo -u $username bash -c 'echo "[default]
-            region = '$region'" > /home/'$username'/.aws/config'
+          region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`
+          count=1
+          for i in $(echo $users | sed "s/,/ /g")
+          do
+              if [ `expr $count % 2` -eq "1" ]; then
+                username=$i
+                let count+=1
+                continue
+              else
+                sudo adduser $username
+                sudo sh -c "echo '$i' | passwd --stdin $username"
+                sudo -u $username mkdir /home/$username/.aws
+                sudo -u $username bash -c 'echo "[default]
+          region = '$region'" > /home/'$username'/.aws/config'
 
-                  sudo -u $username bash -c 'mkdir ~/fftemp'
-                  sudo -u $username bash -c 'mkdir ~/myResults'
+                sudo -u $username bash -c 'mkdir ~/fftemp'
+                sudo -u $username bash -c 'mkdir ~/myResults'
 
-                  sudo -u $username bash -c 'echo "#Connection string for the OMOP database on Redshift
-            connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"redshift\",
-            server = \"${RedshiftEndpoint}/mycdm\",
-            user = \"master\",
-            password = \"${DatabaseMasterPassword}\",
-            port = \"5439\")
+                sudo -u $username bash -c 'echo "#Connection string for the OMOP database on Redshift
+          connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"redshift\",
+          server = \"${RedshiftEndpoint}/mycdm\",
+          user = \"master\",
+          password = \"${DatabaseMasterPassword}\",
+          port = \"5439\")
 
-            #Connection string for the WebAPI database on RDS Aurora PostgreSQL
-            connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
-            server = \"${RDSEndpoint}/OHDSI?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory\",
-            user = \"ohdsi_admin_user\",
-            password = \"${DatabaseMasterPassword}\",
-            port = \"5432\")
+          #Connection string for the WebAPI database on RDS Aurora PostgreSQL
+          connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
+          server = \"${RDSEndpoint}/OHDSI?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory\",
+          user = \"ohdsi_admin_user\",
+          password = \"${DatabaseMasterPassword}\",
+          port = \"5432\")
 
-            options(fftempdir = \"~/fftemp\")
-            outputFolder <- \"myResults\"
-                  " > /home/'$username'/ConnectionDetails.R'
-                  
+          options(fftempdir = \"~/fftemp\")
+          outputFolder <- \"myResults\"
+                " > /home/'$username'/ConnectionDetails.R'
+                
 
 
-                  for i in $(echo $SOURCES | sed "s/,/ /g")
-                  do
-                    sudo -u $username bash -c 'echo "cdmDatabaseSchema <- \"'$i'\"
-            cohortDatabaseSchema <- \"'$i'results\"
-                    " >> /home/'$username'/ConnectionDetails.R'
-                  done
-                  sudo -u $username bash -c 'echo "SageMakerBucket <- \"'$SMBUCKET'\"" >> /home/'$username'/ConnectionDetails.R'
-                  sudo -u $username bash -c 'echo "SageMakerRoleARN <- \"'$SMROLEARN'\"" >> /home/'$username'/ConnectionDetails.R'
+                for i in $(echo $SOURCES | sed "s/,/ /g")
+                do
+                  sudo -u $username bash -c 'echo "cdmDatabaseSchema <- \"'$i'\"
+          cohortDatabaseSchema <- \"'$i'results\"
+                  " >> /home/'$username'/ConnectionDetails.R'
+                done
 
-                  # add the first users in the list to the sudoers file.
-                  if [ "$count" = "2" ]; then
-                    echo "$username  ALL=(ALL:ALL) ALL" >> /etc/sudoers
-                  fi
-
-                  let count+=1
+                # add the first users in the list to the sudoers file.
+                if [ "$count" = "2" ]; then
+                  echo "$username  ALL=(ALL:ALL) ALL" >> /etc/sudoers
                 fi
-            done
-          - { AutoSMBucket: !Join [ "", [ !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'VPCSubnet'] ], '-sagemakerplp' ] ] }
+
+                let count+=1
+              fi
+          done
   RStudioTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     DependsOn: RStudioInstance

@@ -48,7 +48,6 @@ Metadata:
         - RStudioInstanceType
         - RStudioHomeDirectorySize
         - RStudioUserList
-        - SageMakerBucket
     - Label:
         default: Atlas
       Parameters:
@@ -140,8 +139,6 @@ Metadata:
         default: Home Directory size for RStudio instance
       RStudioUserList:
         default: Comma-delimited user list for RStudio
-      SageMakerBucket:
-        default: Bucket for PatientLevelPrediction SageMaker Models
 
       Atlasv:
         default:  Atlas Version
@@ -431,22 +428,18 @@ Parameters:
     NoEcho: true
     ConstraintDescription: "Usernames can contain letters and numbers.  Passwords can contain letters, numbers and these characters #&*." 
     AllowedPattern: ([A-Za-z\d]+,)+([A-Za-z\d#&*.,]+)
-  SageMakerBucket:
-    Description: Name of the S3 bucket you want to use to hold the PatientLevelPrediction training data and model output for SageMaker.  If you leave this blank a bucket will be generated for you.
-    Type: 'String'
-    AllowedPattern: ^([a-zA-Z0-9`~#$%^&*()_+,\\-])*$
   OMOPv:
     Description: The OHDSI CommonDataModel GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '5.3.1'
+    Default: '5.3.0'
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.7.3'
+    Default: '2.7.5'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.7.3'
+    Default: '2.7.5'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -466,7 +459,7 @@ Parameters:
   DatabaseConnectorv:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.4.0'
+    Default: '2.4.1'
   DatabaseConnectorJarsv:
     Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -498,7 +491,7 @@ Parameters:
   Hydrav:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '0.0.4'
+    Default: '0.0.5'
   PredictionComparisonv:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -563,7 +556,6 @@ Resources:
         UseACMBoolean: !Ref 'UseACMBoolean'
         UseRoute53Boolean: !Ref 'UseRoute53Boolean'
         SourcesBucket: !Ref SourcesBucket
-        SageMakerBucket: !Ref SageMakerBucket
         VPCcidr: !Ref VPCcidr
         p1cidr: !Ref p1cidr
         p2cidr: !Ref p2cidr
@@ -579,7 +571,7 @@ Resources:
       Parameters:
         R53HostedZoneId: !Ref 'HostedZoneId'
         R53DomainName: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName]]
-        SubjectAlternativeNames: !Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]]
+        SubjectAlternativeNames: !Join [',', [!Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]], !Join ['', ['jupyter.', !Ref DomainName, '.', !Ref HostedZoneName]]]]
       TemplateURL: https://s3.amazonaws.com/ohdsi-rstudio/01-certificate-ohdsi.yaml
 
   DatabasesStack:
@@ -614,7 +606,6 @@ Resources:
       TemplateURL: https://s3.amazonaws.com/ohdsi-rstudio/02-rstudio-ohdsi.yaml
       Parameters:
         RStudioInstanceProfile: !GetAtt 'VPCStack.Outputs.RStudioInstanceProfile'
-        SageMakerBucket: !Ref SageMakerBucket
         VPCSubnet: !GetAtt 'VPCStack.Outputs.SubnetAppA'
         VPCId: !GetAtt 'VPCStack.Outputs.VPCId'  
         RStudioSecurityGroup: !GetAtt 'VPCStack.Outputs.SGApp'

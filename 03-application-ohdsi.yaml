@@ -712,6 +712,12 @@ Resources:
                   cd Atlas
                   npm config set strict-ssl false
                   npm run build
+                  # The below statements switch the index.html from 'unbundled mode' to 'bundled mode'
+                  commentunbundled=`cat -n index.html | grep data-main=\"js/main\" | cut -f1`
+                  uncommentbundled=`cat -n index.html | grep data-main=\"js/assets/bundle/bundle\" | cut -f1`
+                  sed -i "${commentunbundled}s/.*/        <!-- <script data-main=\"js\/main\" src=\"js\/require.js\"><\/script> -->/" index.html
+                  sed -i "${uncommentbundled}s/.*/        <script data-main=\"js\/assets\/bundle\/bundle\" src=\"js\/require.js\"><\/script>/" index.html
+                  
                   zip -r ../ROOT.war * 
                   cd ..
 
@@ -798,7 +804,7 @@ Resources:
                     sudo Rscript /tmp/rdependencies.r
 
                     #Wait for the WebAPI app to be deployed by Elastic Beanstalk and populate the tables in RDS Postrgres
-                    while [ `curl -I ${Protocol}${RCDomainName}.${HostedZone} 2>/dev/null | head -n 1 | cut -d$' ' -f2` -ne 200 ]
+                    while [ "`curl -I ${Protocol}${RCDomainName}.${HostedZone} 2>/dev/null | head -n 1 | cut -d$' ' -f2`" != "200" ]
                     do
                         sleep 5
                     done
@@ -884,7 +890,13 @@ Resources:
                     do
                           export PGPASSWORD=$DATABASE_PASSWORD
                           cp "$REDSHIFTDDL" "$REDSHIFTDDL-$i"
-                          sed -i "1s/^/SET search_path to $i;\n/" "$REDSHIFTDDL-$i"
+
+                          if [ "$CDM_VERSION" = "5.3.0" ]; then
+                            sed -i 's!@schema_name!'$i'!' "$REDSHIFTDDL-$i"
+                          else
+                            sed -i "1s/^/SET search_path to $i;\n/" "$REDSHIFTDDL-$i"
+                          fi
+                          
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -c "CREATE SCHEMA $i;"
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f "$REDSHIFTDDL-$i"
                           
@@ -897,7 +909,7 @@ Resources:
                           #Get the Results Schema from WebAPI and apply the Results schema
                           t="0"
                           while [ $t -lt 10  ]; do
-                              wget --retry-connrefused --waitretry=2 --read-timeout=20 --timeout=15 -t 10 -q "${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results" -O results_schema.sql --continue
+                              wget --retry-connrefused --waitretry=2 --read-timeout=20 --timeout=15 -t 10 -q "${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ddl/results?dialect=redshift&schema=${!i}results&vocabSchema=${!i}" -O results_schema.sql --continue
                               if [ $? = 0 ]; then break; else t=$[$t+1]; fi; # check return value, break if successful (0)
                               sleep 3s;
                           done;                          
@@ -952,53 +964,72 @@ Resources:
                           aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
                     done
                     
-                    sleep 30
+                    sleep 120
 
                     if [ "$EXAMPLESTUDIES" = "true" ]; then
                       wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsiexamplestudies.zip
                       unzip ohdsiexamplestudies.zip
                       if [ "$ATLASSECURITY" = "true" ]; then
-                        TOKEN=`curl -v -X POST -d "rememberMe=false" -d "login=$firstuser" --data-urlencode "password=$firstpassword" ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db 2>&1 | grep Bearer | cut -d ' ' -f 3`
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        count=0
+                        TOKEN=`curl -v -X POST -d "rememberMe=false" -d "login=$firstuser" --data-urlencode "password=$firstpassword" ${Protocol}${RCDomainName}.${HostedZone}/WebAPI/user/login/db 2>&1 | grep -i bearer | cut -d ' ' -f 3`
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done    
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done
+                        count=0    
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done
+                        count=0   
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0  
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0  
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
+                          let count+=1
                         done
                       else
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done    
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/estimation/import' -H 'Content-Type: application/json' -d @PLEE-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/cohort-characterization/import' -H 'Content-Type: application/json' -d @characterization-LipitorvZocor.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0 
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/pathway-analysis/import' -H 'Content-Type: application/json' -d @pathways-warfarin.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
-                        done   
-                        while [ `curl -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ]
+                          let count+=1
+                        done 
+                        count=0   
+                        while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/ir/design' -H 'Content-Type: application/json' -d @incidence-valsartan.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
+                          let count+=1
                         done
                       fi
                     fi
@@ -1398,9 +1429,9 @@ Resources:
                 group: root  
               /tmp/achilles.r:
                 content: !Sub |
-                  try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", ref = "${SqlRenderv}", upgrade = "never")})
-                  try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", ref = "v${DatabaseConnectorv}", upgrade = "never")})
-                  try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", ref = "v${DatabaseConnectorJarsv}", upgrade = "never")})
+                  try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", version = "${SqlRenderv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", version = "${DatabaseConnectorv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
                   try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
                   library(Achilles)
@@ -1596,6 +1627,7 @@ Resources:
           export RSTUDIO_TARGET_GROUP_ARN=${RStudioTargetGroupArn}
           export JUPYTER_TARGET_GROUP_ARN=${JupyterTargetGroupArn}
           export CDM_VERSION=${OMOPv}
+          export WEBAPI_VERSION=${WebAPIv}
           export SOURCES=${Sources}
           export SOURCESBUCKET=${SourcesBucket}
           export OHDSIADMINUSERPWHASH=`echo -n "${DatabaseMasterPassword}ohdsi_admin_user" | md5sum | cut -d " " -f 1 | awk '{print "md5"$1}'`
@@ -1615,16 +1647,26 @@ Resources:
           aws configure set metadata_service_timeout 10
           aws configure set metadata_service_num_attempts 5
 
-          # Install SSM client
-          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-          restart amazon-ssm-agent
-
           #Use cfn-init to grab and apply the files specified in the above UserData
           /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
           cd /tmp
-          git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
-          git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
-          git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
+
+          if [ "$WEBAPI_VERSION" = "2.7.5" ]; then
+            wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI275.zip
+            unzip AtlasWebAPI275.zip
+          else
+            git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
+            git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
+          fi
+
+          if [ "$CDM_VERSION" = "5.3.0" ]; then
+            wget https://ohdsi-sample-data.s3.amazonaws.com/CDM5.3.0_DDL_Redshift_optimized.sql
+            mkdir -p CommonDataModel/Redshift/
+            cp CDM5.3.0_DDL_Redshift_optimized.sql ./CommonDataModel/Redshift/OMOP.sql
+          else
+            git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
+          fi
+          
           sudo service awslogs start
           #sudo -E bash ./config_ohdsi.sh &>> log.txt
           sudo -E bash ./config_ohdsi.sh
