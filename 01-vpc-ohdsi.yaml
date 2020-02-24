@@ -76,6 +76,8 @@ Parameters:
 
 
 Conditions:    
+  Tokyo: 
+    !Equals [ 'ap-northeast-1', !Ref 'AWS::Region' ]
   DeployRoute53: 
     !Equals [ true, !Ref UseRoute53Boolean ]
   DeployACM: !And 
@@ -133,7 +135,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: !Ref d2cidr
-      AvailabilityZone: !Join [ "", [ !Ref 'AWS::Region', "b" ] ]
+      AvailabilityZone: !If [ Tokyo, !Join [ "", [ !Ref 'AWS::Region', "c" ] ], !Join [ "", [ !Ref 'AWS::Region', "b" ] ] ]
       VpcId: !Ref 'vpc27bc775f'
       Tags:
         - Key: Name
@@ -142,7 +144,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: !Ref a2cidr
-      AvailabilityZone: !Join [ "", [ !Ref 'AWS::Region', "b" ] ]
+      AvailabilityZone: !If [ Tokyo, !Join [ "", [ !Ref 'AWS::Region', "c" ] ], !Join [ "", [ !Ref 'AWS::Region', "b" ] ] ]
       VpcId: !Ref 'vpc27bc775f'
       Tags:
         - Key: Name
@@ -179,7 +181,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: !Ref p2cidr
-      AvailabilityZone: !Join [ "", [ !Ref 'AWS::Region', "b" ] ]
+      AvailabilityZone: !If [ Tokyo, !Join [ "", [ !Ref 'AWS::Region', "c" ] ], !Join [ "", [ !Ref 'AWS::Region', "b" ] ] ]
       MapPublicIpOnLaunch: 'True'
       VpcId: !Ref 'vpc27bc775f'
       Tags:
