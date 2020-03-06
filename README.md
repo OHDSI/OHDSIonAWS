@@ -3,7 +3,9 @@
 ## Quick Start
 This repository allows you to quickly deploy an enterprise class, multi-user, scalable and fault tolerant OHDSI environment on AWS using the latest OHDSI tools.  Choose **Internet Accessible** to launch an OHDSI environment that users can access over the Internet.  **Private Network Only** allows you to specify your own Amazon Virtual Private Cloud (VPC) making the OHDSI environment only accessible from your organization's private network.  If you are interested in a personal OHDSI learning environment you may be better served by the [OHDSI-in-a-box Project](https://github.com/OHDSI/OHDSI-in-a-Box).
 
+## Deployment Walk Through Video
 [![OHDSIonAWS Deployment Walk Through](https://github.com/OHDSI/OHDSIonAWS/raw/master/images/ohdsionaws_youtube.png)](https://www.youtube.com/watch?v=4y3RF2zJSt0 "OHDSIonAWS Deployment Walk Through")
+
 
 | AWS Region Code | Name | Launch Internet Accessible Environment | Launch Private Network Only Environment |
 | --- | --- | --- | --- |
