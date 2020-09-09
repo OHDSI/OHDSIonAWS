@@ -250,6 +250,12 @@ Resources:
               - "autoscaling:DescribeAutoScalingGroups"
               - "cloudformation:DescribeStackResources"
               - "cloudformation:DescribeStackResource"
+              - "ec2:DescribeSubnets"
+              - "ec2:DescribeKeyPairs"
+              - "ec2:DescribeSecurityGroups"
+              - "ec2:DescribeImages"
+              - "ec2:DescribeVpcs"
+              - "ec2:DescribeInstances"
             Resource:
               - '*'          
           - Effect: Allow
@@ -395,13 +401,13 @@ Resources:
                         <datasource.driverClassName>org.postgresql.Driver</datasource.driverClassName>
                         <datasource.url>jdbc:postgresql://${RDSEndpoint}:5432/OHDSI?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory</datasource.url>
                         <datasource.username>ohdsi_app_user</datasource.username>
-                        <datasource.password>app1</datasource.password>
+                        <datasource.password>${DatabaseMasterPassword}</datasource.password>
                         <datasource.dialect>postgresql</datasource.dialect>
                         <datasource.ohdsi.schema>webapi</datasource.ohdsi.schema>
                         <flyway.datasource.driverClassName>${!datasource.driverClassName}</flyway.datasource.driverClassName>
                         <flyway.datasource.url>${!datasource.url}</flyway.datasource.url>
                         <flyway.datasource.username>ohdsi_admin_user</flyway.datasource.username>
-                        <flyway.datasource.password>admin1</flyway.datasource.password>
+                        <flyway.datasource.password>${DatabaseMasterPassword}</flyway.datasource.password>
                         <flyway.locations>classpath:db/migration/postgresql</flyway.locations>
                         <security.enabled>false</security.enabled>
                         <security.token.expiration>43200</security.token.expiration>
