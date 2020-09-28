@@ -596,6 +596,10 @@ Resources:
           try(if(("PatientLevelPrediction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PatientLevelPrediction") != "${PatientLevelPredictionv}")){devtools::install_github("ohdsi/PatientLevelPrediction", ref = "v${PatientLevelPredictionv}", upgrade = "never")})
           try(if(("PredictionComparison" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PredictionComparison") != "${PredictionComparisonv}")){devtools::install_github("ohdsi/PredictionComparison", ref = "v${PredictionComparisonv}", upgrade = "never")})
           try(if(("Eunomia" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Eunomia") != "${Eunomiav}")){devtools::install_github("ohdsi/Eunomia", ref = "v${Eunomiav}", upgrade = "never")})
+          devtools::install_version("pillar", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade ="never")
+          devtools::install_version("tibble", version = "3.0.0", repos = "http://cran.us.r-project.org", upgrade ="never")
+          devtools::install_version("tidyselect", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")
+          devtools::install_github("ohdsi/Andromeda", ref = "v0.3.2", upgrade = "never")
           R_SCRIPT
 
           region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`

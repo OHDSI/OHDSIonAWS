@@ -348,15 +348,15 @@ Parameters:
     Type: String
     Description: "Include example studies in Atlas?"
     AllowedValues:
-      - "true"
-      - "false"
+      - true
+      - false
     Default: true  
   AtlasSecurity:
     Type: String
     Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
     AllowedValues:
-      - "true"
-      - "false"
+      - true
+      - false
     Default: true
 
   RStudioInstanceType:

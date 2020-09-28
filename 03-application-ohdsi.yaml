@@ -150,15 +150,15 @@ Parameters:
     Type: String
     Description: "Use the RStudio usernames and passwords to authenticate access to Atlas?"
     AllowedValues:
-      - "true"
-      - "false"
+      - true
+      - false
     Default: false
   ExampleStudies:
     Type: String
     Description: "Include example studies in Atlas?"
     AllowedValues:
-      - "true"
-      - "false"
+      - true
+      - false
     Default: true 
   UserList:
     Description: Provide a comma separated list of usernames and passwords (user1,pass1,user2,pass2) to create on the R-Studio Server.
@@ -697,6 +697,12 @@ Resources:
                   fi
                   
                   cd WebAPI
+                  
+                  #Some versions of WebAPI don't specify https for springsource, and they block http now
+                  if grep -q http://repo.springsource.org pom.xml; then
+                    sed -i 's!http://repo.springsource.org!https://repo.springsource.org!' pom.xml
+                  fi
+
                   mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
                   cd ..
                   cp ./WebAPI/target/WebAPI.war .
@@ -902,6 +908,7 @@ Resources:
                           
                           #Deploy the DDL with the appropriate source name and run it
                           aws s3 cp s3://$SOURCESBUCKET/$i.sql .
+                          sed -i "1s/^/SET search_path to $i;\n/" $i.sql
                           sed -i 's!RS_ROLE_ARN!'$RS_ROLE_ARN'!' $i.sql
                     
                           psql -d mycdm --host=$REDSHIFT_ENDPOINT --port=5439 -U master -a -f $i.sql
@@ -1002,6 +1009,7 @@ Resources:
                           let count+=1
                         done
                       else
+                        count=0 
                         while [ `curl --http1.1 -w "\\n%{http_code}\\n" '${Protocol}${RCDomainName}.${HostedZone}/WebAPI/prediction/import' -H 'Content-Type: application/json' -d @PLP-CHADS2.json '{}' 2>/dev/null | tail -n 1` -ne 200 ] && [ $count -ne "30" ];
                         do
                           sleep 5
