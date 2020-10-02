@@ -259,7 +259,7 @@ During the build process a temporary Linux instance is created that compiles Web
 At this point, you have a fully functioning and robust OHDSI environment to begin using.  Following are some helpful points to consider regarding how to support this environment on-going.
 
 #### Atlas User Management
-
+If you enabled Atlas Security during your deployment, you can use an included shell script called ```atlasusermgmt.sh``` to add and delete users and to update their passwords.  This script is included in the RStudio home directory of the first user in the comma-delimited list you provided.  Simply run the script from the RStudio Terminal (as shown below).  It will ask you for the ```OHDSI RDS Endpoint name``` and the ```Password for user ohdsi_security_user```.  These are included in the ```ConnectionDetails.R``` file in the ```Connection string for the WebAPI database on RDS Aurora PostgreSQL```.
 ![alt-text](/images/atlasusermgmt.png "Atlas User Management")
 
 #### Upgrading Atlas/WebAPI
