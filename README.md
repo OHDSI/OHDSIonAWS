@@ -258,6 +258,10 @@ During the build process a temporary Linux instance is created that compiles Web
 ## On-going Operations
 At this point, you have a fully functioning and robust OHDSI environment to begin using.  Following are some helpful points to consider regarding how to support this environment on-going.
 
+#### Atlas User Management
+
+![alt-text](/images/atlasusermgmt.png "Atlas User Management")
+
 #### Upgrading Atlas/WebAPI
 
 <a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?templateURL=https://s3.amazonaws.com/ohdsi-rstudio/upgrade_atlas_webapi.yaml" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png"/></a> 
