@@ -9,6 +9,21 @@
 
 LOGFILE="/tmp/usermgmt.log"
 
+
+#
+# FUNCTION: ishttpdtoolsinstalled
+#
+#
+function ishttpdtoolsinstalled {
+  if yum list installed "httpd24-tools" >/dev/null 2>&1; then
+    echo "httpd24-tools already installed"
+  else
+    sudo yum -y install httpd24-tools
+  fi
+}
+
+isinstalled
+
 #
 # FUNCTION: lookupuser
 #
@@ -149,6 +164,7 @@ deleteuser(){
 #
 # Main Menu Loop
 #
+	ishttpdtoolsinstalled
 	while true
 	do
                	clear
