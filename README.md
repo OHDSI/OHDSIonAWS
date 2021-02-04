@@ -32,24 +32,29 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | OHDSI Component | Version |
 | --- | --- 
 | OMOP Common Data Model | v5.3.1 |
-| Atlas | v2.7.5 |
-| WebAPI | v2.7.5 | 
+| Atlas | v2.8.0 |
+| WebAPI | v2.8.0 | 
 | Achilles | v1.6.3 |
-| PatientLevelPrediction | v3.0.6 |
-| CohortMethod | v3.1.0 |
-| SqlRender | v1.6.2 |
-| DatabaseConnector | v2.4.1 |
-| DatabaseConnectorJars | v1.0.0 |
-| SqlRender | v1.6.2 |
-| OhdsiRTools | v1.7.0 |
-| FeatureExtraction | v2.2.5 |
-| Cyclops | v2.0.2 |
-| EmpiricalCalibration | v2.0.0 |
-| OhdsiSharing | v0.1.3 |
-| MethodEvaluation | v1.1.0 |
-| Hydra | v0.0.5 |
+| PatientLevelPrediction | v4.0.5 |
+| CohortMethod | v4.0.1 |
+| SqlRender | v1.6.8 |
+| DatabaseConnector | v3.0.0 |
+| DatabaseConnectorJars | v1.1.0 |
+| OhdsiRTools | v1.9.1 |
+| FeatureExtraction | v3.1.0 |
+| Cyclops | v3.0.0 |
+| EmpiricalCalibration | v2.0.2 |
+| OhdsiSharing | v0.2.2 |
+| MethodEvaluation | v2.0.0 |
+| Hydra | v0.1.1 |
 | PredictionComparison | v1.0.0 |
-| Eunomia | v1.0.0 |
+| Eunomia | v1.0.1 |
+| BigKNN | v1.0.0 |
+| Andromeda | v0.4.0 |
+| SelfControlledCaseSeries | v2.0.0 |
+| SelfControlledCohort | v1.5.0 |
+| EvidenceSynthesis | v0.2.3 |
+| CohortDiagnostics | v1.2.7 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
