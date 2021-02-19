@@ -186,5 +186,5 @@ Resources:
 Outputs:
   RDSEndpoint: 
     Value: !GetAtt RDSCluster.Endpoint.Address 
-RedshiftEndpoint: 
+ RedshiftEndpoint: 
     Value: !GetAtt RedshiftCluster.Endpoint.Address
