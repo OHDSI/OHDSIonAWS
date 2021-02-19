@@ -187,4 +187,4 @@ Outputs:
   RDSEndpoint: 
     Value: !GetAtt RDSCluster.Endpoint.Address 
   RedshiftEndpoint: 
-    Value: !GetAtt RedshiftCluster.Endpoint.Address
+    Value: !GetAtt RedshiftCluster.Endpoint.Address 
