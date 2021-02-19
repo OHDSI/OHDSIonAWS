@@ -85,7 +85,7 @@ Resources:
       MasterUsername: 'master'
       MasterUserPassword: !Ref DatabaseMasterPassword
       Engine: aurora-postgresql
-      EngineVersion: 10.7
+      EngineVersion: 10.11
       EngineMode: !If [ Serverless, 'serverless', 'provisioned' ]
       StorageEncrypted: 'True'
       Port: 5432
@@ -104,7 +104,7 @@ Resources:
       DBParameterGroupName:
         Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
-      EngineVersion: 10.7
+      EngineVersion: 10.11
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
@@ -119,7 +119,7 @@ Resources:
       DBParameterGroupName:
         Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
-      EngineVersion: 10.7
+      EngineVersion: 10.11
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
