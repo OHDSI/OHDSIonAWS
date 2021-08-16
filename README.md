@@ -31,17 +31,18 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 ### Included OHDSI Projects
 | OHDSI Component | Version |
 | --- | --- 
+| R | v4.1.0 |
 | OMOP Common Data Model | v5.3.1 |
-| Atlas | v2.8.0 |
-| WebAPI | v2.8.0 | 
+| Atlas | v2.9.1 |
+| WebAPI | v2.9.1 | 
 | Achilles | v1.6.3 |
 | PatientLevelPrediction | v4.0.5 |
 | CohortMethod | v4.0.1 |
 | SqlRender | v1.6.8 |
-| DatabaseConnector | v3.0.0 |
+| DatabaseConnector | v4.0.0 |
 | DatabaseConnectorJars | v1.1.0 |
 | OhdsiRTools | v1.9.1 |
-| FeatureExtraction | v3.1.0 |
+| FeatureExtraction | v3.1.1 |
 | Cyclops | v3.0.0 |
 | EmpiricalCalibration | v2.0.2 |
 | OhdsiSharing | v0.2.2 |
@@ -54,7 +55,8 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | SelfControlledCaseSeries | v2.0.0 |
 | SelfControlledCohort | v1.5.0 |
 | EvidenceSynthesis | v0.2.3 |
-| CohortDiagnostics | v1.2.7 |
+| CohortDiagnostics | v2.1.0 |
+| Hades | v1.0.0 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
