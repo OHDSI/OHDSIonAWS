@@ -32,6 +32,7 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | OHDSI Component | Version |
 | --- | --- 
 | R | v4.1.0 |
+| RStudio | v1.4.1717 |
 | OMOP Common Data Model | v5.3.1 |
 | Atlas | v2.9.1 |
 | WebAPI | v2.9.1 | 
