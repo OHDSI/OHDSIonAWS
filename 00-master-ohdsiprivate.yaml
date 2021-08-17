@@ -77,6 +77,13 @@ Metadata:
         - Hydrav
         - PredictionComparisonv
         - Eunomiav
+        - Andromedav
+        - BigKNNv
+        - SelfControlledCaseSeriesv
+        - SelfControlledCohortv
+        - EvidenceSynthesisv
+        - CohortDiagnosticsv
+        - Hadesv
     - Label:
         default: VPC Networking
       Parameters:
@@ -177,7 +184,20 @@ Metadata:
         default: PredictionComparison Version
       Eunomiav:
         default: Eunomia Version
-      
+      Andromedav:
+        default: Andromeda Version
+      BigKNNv:
+        default: BigKNN Version
+      SelfControlledCaseSeriesv:
+        default: SelfControlledCaseSeries Version
+      SelfControlledCohortv:
+        default: SelfControlledCohort Version
+      EvidenceSynthesisv:
+        default: EvidenceSynthesis Version
+      CohortDiagnosticsv:
+        default: CohortDiagnostics Version
+      Hadesv:
+        default: Hades Version     
 
       VPCId:
         default: VPC to use for OHDSI
@@ -436,11 +456,11 @@ Parameters:
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.7.5'
+    Default: '2.9.1'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.7.5'
+    Default: '2.9.1'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String
@@ -448,57 +468,85 @@ Parameters:
   PatientLevelPredictionv:
     Description: OHDSI PatientLevelPrediction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '3.0.6'
+    Default: '4.0.5'
   CohortMethodv:
     Description: OHDSI CohortMethod GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '3.1.0'
+    Default: '4.0.1'
   SqlRenderv:
     Description: OHDSI SqlRender GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '1.6.2'
+    Default: '1.6.8'
   DatabaseConnectorv:
     Description: OHDSI DatabaseConnector GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.4.1'
+    Default: '4.0.0'
   DatabaseConnectorJarsv:
     Description: OHDSI DatabaseConnectorJars GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '1.0.0'
+    Default: '1.1.0'
   OhdsiRToolsv:
     Description: OhdsiRTools GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '1.7.0'
+    Default: '1.9.1'
   FeatureExtractionv:
     Description: OHDSI FeatureExtraction GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.2.5'
+    Default: '3.1.1'
   Cyclopsv:
     Description: OHDSI Cyclops GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.0.2'
+    Default: '3.0.0'
   EmpiricalCalibrationv:
     Description: OHDSI EmpiricalCalibration GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.0.0'
+    Default: '2.0.2'
   OhdsiSharingv:
     Description: OHDSI OhdsiSharing GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '0.1.3'
+    Default: '0.2.2'
   MethodEvaluationv:
     Description: OHDSI MethodEvaluation GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '1.1.0'
+    Default: '2.0.0'
   Hydrav:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '0.0.5'
+    Default: '0.1.1'
   PredictionComparisonv:
     Description: OHDSI Hydra GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: '1.0.0'
   Eunomiav:
     Description: OHDSI Eunomia GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.1'
+  Andromedav:
+    Description: OHDSI Andromeda GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.4.0'
+  BigKNNv:
+    Description: OHDSI Andromeda GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  SelfControlledCaseSeriesv:
+    Description: OHDSI SelfControlledCaseSeries GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.0'
+  SelfControlledCohortv:
+    Description: OHDSI SelfControlledCohort GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.5.0'
+  EvidenceSynthesisv:
+    Description: OHDSI EvidenceSynthesis GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.2.3'
+  CohortDiagnosticsv:
+    Description: OHDSI CohortDiagnostics GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.1.0'
+  Hadesv:
+    Description: OHDSI Hades GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: '1.0.0'
 
@@ -549,13 +597,20 @@ Resources:
 
   certificate:
     Condition: DeployACM
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      Parameters:
-        R53HostedZoneId: !Ref 'HostedZoneId'
-        R53DomainName: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName]]
-        SubjectAlternativeNames: !Join [',', [!Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]], !Join ['', ['jupyter.', !Ref DomainName, '.', !Ref HostedZoneName]]]]
-      TemplateURL: https://s3.amazonaws.com/ohdsi-rstudio/01-certificate-ohdsi.yaml
+    Type: AWS::CertificateManager::Certificate
+    Properties: 
+      DomainName: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName]]
+      SubjectAlternativeNames:
+        - !Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]]
+        - !Join ['', ['jupyter.', !Ref DomainName, '.', !Ref HostedZoneName]]
+      DomainValidationOptions: 
+        - HostedZoneId: !Ref HostedZoneId
+          DomainName: !Join ['', [!Ref DomainName, '.', !Ref HostedZoneName]]
+        - HostedZoneId: !Ref HostedZoneId
+          DomainName: !Join ['', ['rstudio.', !Ref DomainName, '.', !Ref HostedZoneName]]
+        - HostedZoneId: !Ref HostedZoneId
+          DomainName: !Join ['', ['jupyter.', !Ref DomainName, '.', !Ref HostedZoneName]]       
+      ValidationMethod: DNS
 
   DatabasesStack:
     Type: AWS::CloudFormation::Stack
@@ -612,6 +667,13 @@ Resources:
         Achillesv: !Ref 'Achillesv'
         PredictionComparisonv: !Ref 'PredictionComparisonv'
         Eunomiav: !Ref 'Eunomiav'
+        Andromedav: !Ref 'Andromedav'
+        BigKNNv: !Ref 'BigKNNv'
+        SelfControlledCaseSeriesv: !Ref 'SelfControlledCaseSeriesv'
+        SelfControlledCohortv: !Ref 'SelfControlledCohortv'
+        EvidenceSynthesisv: !Ref 'EvidenceSynthesisv'
+        CohortDiagnosticsv: !Ref 'CohortDiagnosticsv'
+        Hadesv: !Ref 'Hadesv'
         RDSEndpoint: !GetAtt 'DatabasesStack.Outputs.RDSEndpoint'
         RedshiftEndpoint: !GetAtt 'DatabasesStack.Outputs.RedshiftEndpoint'
         Sources: !Ref Sources
@@ -631,7 +693,7 @@ Resources:
         SourcesBucket:
           !Ref SourcesBucket
         SslCertificate:
-          !If [ DeployACM, !GetAtt [ certificate, Outputs.CertificateArn ], '' ]
+          !If [ DeployACM, !Ref certificate, '' ]
         WebAsgMax:
           !Ref WebAsgMax
         WebAsgMin:

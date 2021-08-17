@@ -174,13 +174,41 @@ Parameters:
     Description: OHDSI Eunomia GitHub branch you want deployed (this specifies the version)
     Type: String
     Default: '0.0.1'
+  Andromedav:
+    Description: OHDSI Andromeda GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.4.0'
+  BigKNNv:
+    Description: OHDSI Andromeda GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
+  SelfControlledCaseSeriesv:
+    Description: OHDSI SelfControlledCaseSeries GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '2.0.0'
+  SelfControlledCohortv:
+    Description: OHDSI SelfControlledCohort GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.5.0'
+  EvidenceSynthesisv:
+    Description: OHDSI EvidenceSynthesis GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '0.2.3'
+  CohortDiagnosticsv:
+    Description: OHDSI CohortDiagnostics GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.2.7'
+  Hadesv:
+    Description: OHDSI Hades GitHub branch you want deployed (this specifies the version)
+    Type: String
+    Default: '1.0.0'
 
 Mappings:
   RegionMap:
     us-east-1:
-      AMI: ami-467ca739
+      AMI: ami-0d5eff06f840b45e9
     us-east-2:
-      AMI: ami-976152f2
+      AMI: ami-0443305dabd4be2bc
     us-west-1:
       AMI: ami-46e1f226
     us-west-2:
@@ -265,8 +293,8 @@ Resources:
                   try(if(("AUC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("AUC") != "0.3.0")){devtools::install_version("AUC", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("backports" %in% rownames(installed.packages()) == FALSE) || (packageVersion("backports") != "1.1.4")){devtools::install_version("backports", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("base64enc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("base64enc") != "0.1-3")){devtools::install_version("base64enc", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("BH" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BH") != "1.69.0-1")){devtools::install_version("BH", version = "1.69.0-1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("bit" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bit") != "1.1-14")){devtools::install_version("bit", version = "1.1-14", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("BH" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BH") != "1.75.0-0")){devtools::install_version("BH", version = "1.75.0-0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("bit" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bit") != "4.0.4")){devtools::install_version("bit", version = "4.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("bitops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("bitops") != "1.0-6")){devtools::install_version("bitops", version = "1.0-6", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("caTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("caTools") != "1.17.1.2")){devtools::install_version("caTools", version = "1.17.1.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("checkmate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("checkmate") != "1.9.3")){devtools::install_version("checkmate", version = "1.9.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -278,11 +306,11 @@ Resources:
                   try(if(("crosstalk" %in% rownames(installed.packages()) == FALSE) || (packageVersion("crosstalk") != "1.0.0")){devtools::install_version("crosstalk", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("curl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("curl") != "3.3")){devtools::install_version("curl", version = "3.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("data.table" %in% rownames(installed.packages()) == FALSE) || (packageVersion("data.table") != "1.12.2")){devtools::install_version("data.table", version = "1.12.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("DBI" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DBI") != "1.0.0")){devtools::install_version("DBI", version = "1.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("DBI" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DBI") != "1.1.1")){devtools::install_version("DBI", version = "1.1.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("desc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("desc") != "1.2.0")){devtools::install_version("desc", version = "1.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("diagram" %in% rownames(installed.packages()) == FALSE) || (packageVersion("diagram") != "1.6.4")){devtools::install_version("diagram", version = "1.6.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("doParallel" %in% rownames(installed.packages()) == FALSE) || (packageVersion("doParallel") != "1.0.14")){devtools::install_version("doParallel", version = "1.0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("dplyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("dplyr") != "0.8.1")){devtools::install_version("dplyr", version = "0.8.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("dplyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("dplyr") != "1.0.4")){devtools::install_version("dplyr", version = "1.0.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("DT" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DT") != "0.7")){devtools::install_version("DT", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("evaluate" %in% rownames(installed.packages()) == FALSE) || (packageVersion("evaluate") != "0.14")){devtools::install_version("evaluate", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("fansi" %in% rownames(installed.packages()) == FALSE) || (packageVersion("fansi") != "0.4.0")){devtools::install_version("fansi", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -296,18 +324,18 @@ Resources:
                   try(if(("functional" %in% rownames(installed.packages()) == FALSE) || (packageVersion("functional") != "0.6")){devtools::install_version("functional", version = "0.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("gdtools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gdtools") != "0.1.9")){devtools::install_version("gdtools", version = "0.1.9", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("generics" %in% rownames(installed.packages()) == FALSE) || (packageVersion("generics") != "0.0.2")){devtools::install_version("generics", version = "0.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("ggplot2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ggplot2") != "3.2.0")){devtools::install_version("ggplot2", version = "3.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ggplot2" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ggplot2") != "3.3.3")){devtools::install_version("ggplot2", version = "3.3.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("gh" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gh") != "1.0.1")){devtools::install_version("gh", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("glue" %in% rownames(installed.packages()) == FALSE) || (packageVersion("glue") != "1.3.1")){devtools::install_version("glue", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("glue" %in% rownames(installed.packages()) == FALSE) || (packageVersion("glue") != "1.4.2")){devtools::install_version("glue", version = "1.4.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("gridExtra" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gridExtra") != "2.3")){devtools::install_version("gridExtra", version = "2.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("gtable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("gtable") != "0.3.0")){devtools::install_version("gtable", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("hexbin" %in% rownames(installed.packages()) == FALSE) || (packageVersion("hexbin") != "1.27.3")){devtools::install_version("hexbin", version = "1.27.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("highr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("highr") != "0.8")){devtools::install_version("highr", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("Hmisc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hmisc") != "4.2-0")){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("htmlTable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlTable") != "1.13.1")){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.3.6")){devtools::install_version("htmltools", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.5.1.1")){devtools::install_version("htmltools", version = "0.5.1.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("htmlwidgets" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlwidgets") != "1.3")){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.5.0")){devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.6.1")){devtools::install_version("httpuv", version = "1.6.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("ini" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ini") != "0.3.1")){devtools::install_version("ini", version = "0.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("iterators" %in% rownames(installed.packages()) == FALSE) || (packageVersion("iterators") != "1.0.10")){devtools::install_version("iterators", version = "1.0.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("itertools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("itertools") != "0.1-3")){devtools::install_version("itertools", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -319,7 +347,7 @@ Resources:
                   try(if(("lazyeval" %in% rownames(installed.packages()) == FALSE) || (packageVersion("lazyeval") != "0.2.2")){devtools::install_version("lazyeval", version = "0.2.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("magrittr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("magrittr") != "1.5")){devtools::install_version("magrittr", version = "1.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("mailR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mailR") != "0.4.1")){devtools::install_version("mailR", version = "0.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("markdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("markdown") != "1")){devtools::install_version("markdown", version = "1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("markdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("markdown") != "1.0")){devtools::install_version("markdown", version = "1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("mime" %in% rownames(installed.packages()) == FALSE) || (packageVersion("mime") != "0.7")){devtools::install_version("mime", version = "0.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("munsell" %in% rownames(installed.packages()) == FALSE) || (packageVersion("munsell") != "0.5.0")){devtools::install_version("munsell", version = "0.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("officer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("officer") != "0.3.5")){devtools::install_version("officer", version = "0.3.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -327,7 +355,7 @@ Resources:
                   try(if(("openxlsx" %in% rownames(installed.packages()) == FALSE) || (packageVersion("openxlsx") != "4.1.0.1")){devtools::install_version("openxlsx", version = "4.1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("pack" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pack") != "0.1-1")){devtools::install_version("pack", version = "0.1-1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("ParallelLogger" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ParallelLogger") != "1.1.0")){devtools::install_version("ParallelLogger", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("pillar" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pillar") != "1.4.1")){devtools::install_version("pillar", version = "1.4.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("pillar" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pillar") != "1.4.3")){devtools::install_version("pillar", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("pkgconfig" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pkgconfig") != "2.0.2")){devtools::install_version("pkgconfig", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("plogr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plogr") != "0.2.0")){devtools::install_version("plogr", version = "0.2.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("plotly" %in% rownames(installed.packages()) == FALSE) || (packageVersion("plotly") != "4.9.0")){devtools::install_version("plotly", version = "4.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -335,9 +363,9 @@ Resources:
                   try(if(("png" %in% rownames(installed.packages()) == FALSE) || (packageVersion("png") != "0.1-7")){devtools::install_version("png", version = "0.1-7", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("prettyunits" %in% rownames(installed.packages()) == FALSE) || (packageVersion("prettyunits") != "1.0.2")){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("pROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pROC") != "1.15.0")){devtools::install_version("pROC", version = "1.15.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.0.1")){devtools::install_version("promises", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.1.0")){devtools::install_version("promises", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("PRROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PRROC") != "1.3.1")){devtools::install_version("PRROC", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.3.0")){devtools::install_version("ps", version = "1.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.5.0")){devtools::install_version("ps", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("purrr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("purrr") != "0.3.2")){devtools::install_version("purrr", version = "0.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("PythonInR" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PythonInR") != "0.1-4")){devtools::install_version("PythonInR", version = "0.1-4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("R.methodsS3" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.methodsS3") != "1.7.1")){devtools::install_version("R.methodsS3", version = "1.7.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -345,7 +373,7 @@ Resources:
                   try(if(("R.utils" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R.utils") != "2.9.0")){devtools::install_version("R.utils", version = "2.9.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("R6" %in% rownames(installed.packages()) == FALSE) || (packageVersion("R6") != "2.4.0")){devtools::install_version("R6", version = "2.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("RColorBrewer" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RColorBrewer") != "1.1-2")){devtools::install_version("RColorBrewer", version = "1.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("Rcpp" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Rcpp") != "1.0.1")){devtools::install_version("Rcpp", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("Rcpp" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Rcpp") != "1.0.7")){devtools::install_version("Rcpp", version = "1.0.7", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("RcppEigen" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RcppEigen") != "0.3.3.5.0")){devtools::install_version("RcppEigen", version = "0.3.3.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("RCurl" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RCurl") != "1.95-4.12")){devtools::install_version("RCurl", version = "1.95-4.12", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("ReporteRs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ReporteRs") != "0.8.10")){devtools::install_version("ReporteRs", version = "0.8.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -355,7 +383,7 @@ Resources:
                   try(if(("rJava" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rJava") != "0.9-11")){devtools::install_version("rJava", version = "0.9-11", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("rjson" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rjson") != "0.2.20")){devtools::install_version("rjson", version = "0.2.20", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("RJSONIO" %in% rownames(installed.packages()) == FALSE) || (packageVersion("RJSONIO") != "1.3-1.2")){devtools::install_version("RJSONIO", version = "1.3-1.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("rlang" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rlang") != "0.4.0")){devtools::install_version("rlang", version = "0.4.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("rlang" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rlang") != "0.4.10")){devtools::install_version("rlang", version = "0.4.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("rmarkdown" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rmarkdown") != "1.13")){devtools::install_version("rmarkdown", version = "1.13", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("rprojroot" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rprojroot") != "1.3-2")){devtools::install_version("rprojroot", version = "1.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("rvg" %in% rownames(installed.packages()) == FALSE) || (packageVersion("rvg") != "0.2.1")){devtools::install_version("rvg", version = "0.2.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -373,15 +401,15 @@ Resources:
                   try(if(("sys" %in% rownames(installed.packages()) == FALSE) || (packageVersion("sys") != "3.2")){devtools::install_version("sys", version = "3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("tensorflow" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tensorflow") != "1.13.1")){devtools::install_version("tensorflow", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("tfruns" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tfruns") != "1.4")){devtools::install_version("tfruns", version = "1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("tibble" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tibble") != "2.1.3")){devtools::install_version("tibble", version = "2.1.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("tidyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyr") != "0.8.3")){devtools::install_version("tidyr", version = "0.8.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("tidyselect" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyselect") != "0.2.5")){devtools::install_version("tidyselect", version = "0.2.5", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tibble" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tibble") != "3.0.0")){devtools::install_version("tibble", version = "3.0.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tidyr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyr") != "1.1.2")){devtools::install_version("tidyr", version = "1.1.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("tidyselect" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tidyselect") != "1.1.0")){devtools::install_version("tidyselect", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("tinytex" %in% rownames(installed.packages()) == FALSE) || (packageVersion("tinytex") != "0.14")){devtools::install_version("tinytex", version = "0.14", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("triebeard" %in% rownames(installed.packages()) == FALSE) || (packageVersion("triebeard") != "0.3.0")){devtools::install_version("triebeard", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("urltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("urltools") != "1.7.3")){devtools::install_version("urltools", version = "1.7.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("utf8" %in% rownames(installed.packages()) == FALSE) || (packageVersion("utf8") != "1.1.4")){devtools::install_version("utf8", version = "1.1.4", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("uuid" %in% rownames(installed.packages()) == FALSE) || (packageVersion("uuid") != "0.1-2")){devtools::install_version("uuid", version = "0.1-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("vctrs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("vctrs") != "0.1.0")){devtools::install_version("vctrs", version = "0.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("vctrs" %in% rownames(installed.packages()) == FALSE) || (packageVersion("vctrs") != "0.3.6")){devtools::install_version("vctrs", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("viridis" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridis") != "0.5.1")){devtools::install_version("viridis", version = "0.5.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("viridisLite" %in% rownames(installed.packages()) == FALSE) || (packageVersion("viridisLite") != "0.3.0")){devtools::install_version("viridisLite", version = "0.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("whisker" %in% rownames(installed.packages()) == FALSE) || (packageVersion("whisker") != "0.3-2")){devtools::install_version("whisker", version = "0.3-2", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -396,29 +424,22 @@ Resources:
                 mode: 000664
                 owner: root
                 group: root
-              /etc/init/jupyter-server.conf:
+              /etc/systemd/system/jupyter-server.service:
                 content: |
-                  # rserver - RStudio main gateway process
-                  #
-                  #
-                  # upstart docs: http://upstart.ubuntu.com/getting-started.html
-                  #               http://manpages.ubuntu.com/manpages/karmic/man5/init.5.html
-                  #
-                  # (note that embedding a script and pre-start and post-start actions are supported)
-                  #
+                  [Unit]
+                  Description=JupyterHub
+                  After=syslog.target network.target
 
-                  start on runlevel [2345]
-                  stop on runlevel [!2345]
+                  [Service]
+                  User=root
+                  Environment="PATH=/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/jupyterhub/bin"
+                  ExecStart=/usr/local/bin/jupyterhub -f /etc/systemd/system/jupyterhub_config.py
 
-                  expect fork
-
-                  respawn
-
-                  # run the server
-                  exec /usr/local/bin/jupyterhub --port=80 --Spawner.default_url='/lab'
+                  [Install]
+                  WantedBy=multi-user.target
                 mode: 000644
                 owner: root
-                group: root                
+                group: root            
     Properties:
       IamInstanceProfile: !Ref RStudioInstanceProfile
       InstanceType: !Ref InstanceType
@@ -448,17 +469,20 @@ Resources:
       UserData:
         Fn::Base64: !Sub | 
           #!/bin/bash
-          RSTUDIO_URL="https://download2.rstudio.org/server/centos6/x86_64/rstudio-server-rhel-1.2.1335-x86_64.rpm"
-          SHINY_URL="https://download3.rstudio.org/centos6.3/x86_64/shiny-server-1.5.9.923-x86_64.rpm"
+          RSTUDIO_URL="https://download2.rstudio.org/server/centos7/x86_64/rstudio-server-rhel-1.4.1103-x86_64.rpm"
+          SHINY_URL="https://download3.rstudio.org/centos7/x86_64/shiny-server-1.5.16.958-x86_64.rpm"
           RSTUDIOPORT=8787
           users="${UserList}"
           SMROLEARN=${SageMakerRole}
           MIN_USER_ID=400 
           export SOURCES=${Sources}
+          export PATH=$PATH:/usr/local/bin
 
           # Install SSM client
-          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-          restart amazon-ssm-agent
+          #yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          #restart amazon-ssm-agent
+
+          #pip install awscli
           
           #Use cfn-init to grab and apply the files specified in the above UserData
           /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource RStudioInstance --region ${AWS::Region}
@@ -471,7 +495,6 @@ Resources:
           mount /dev/sdm /home
           echo "/dev/sdm /home ext4 defaults,nofail 0 2" >> /etc/fstab
 
-          yum erase -y java-1.7.0-openjdk java-1.7.0-openjdk-devel
           yum install -y java-1.8.0-openjdk java-1.8.0-openjdk-devel
 
           export MAKE='make -j 8'
@@ -490,13 +513,14 @@ Resources:
           pushd .
           mkdir R-latest
           cd R-latest
-          wget https://cran.r-project.org/src/base/R-3/R-3.5.3.tar.gz
-          tar -xzf R-3.5.3.tar.gz
+          wget https://cran.r-project.org/src/base/R-4/R-4.1.0.tar.gz
+          tar -xzf R-4.1.0.tar.gz
           #Trying out Python
-          sudo yum install -y python36 python36-devel python36-pip
+          sudo yum install -y python3 python3-devel python3-pip
           sudo yum install -y gcc gcc-c++ gcc-gfortran
-          sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
-          cd R-3*
+          sudo yum install -y bzip2-devel readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+          sudo yum install -y pcre2-devel
+          cd R-4*
           ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
           make -j 8
           sudo make install
@@ -531,8 +555,8 @@ Resources:
 
           #Grab R binaries   
           cd /usr/lib64/R/library
-          wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-3.5.3.tar.gz
-          tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
+          wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-al2-4.1.0.tar.gz
+          tar zxvf ohdsi-rdependencies-al2-4.1.0.tar.gz
 
           #Install R dependencies if any of the specified versions differ
           sudo Rscript /tmp/rdependencies.r
@@ -548,12 +572,13 @@ Resources:
           # Install Jupyter
           export PATH=$PATH:/usr/local/bin
           echo "127.0.0.1  `hostname`"  >> /etc/hosts
-          sudo yum install -y nodejs npm --enablerepo=epel
+          curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
+          sudo yum install -y nodejs 
           npm config set strict-ssl false
-          pip-3.6 install jupyterhub
+          pip-3 install jupyterhub
           npm install -g configurable-http-proxy
-          pip-3.6 install "ipython[notebook]"
-          pip-3.6 install jupyterlab
+          pip-3 install "ipython[notebook]"
+          pip-3 install jupyterlab
           jupyter serverextension enable --py jupyterlab
 
           R --no-save << R_SCRIPT
@@ -561,33 +586,42 @@ Resources:
           IRkernel::installspec(user = FALSE)
           R_SCRIPT
 
-          sudo initctl start jupyter-server
+          cd /etc/systemd/system
+          sudo /usr/local/bin/jupyterhub --generate-config
+          sed -i "s|# c.Spawner.default_url = ''|c.Spawner.default_url = '/lab'|" ./jupyterhub_config.py
+          sed -i "s|# c.JupyterHub.port = 8000|c.JupyterHub.port = 80|" ./jupyterhub_config.py
+          sudo systemctl daemon-reload
+          sudo systemctl enable jupyter-server.service
+          sudo systemctl start jupyter-server.service
 
           sudo yum install -y cairo-devel
-          sudo yum install -y python-scipy
-          sudo pip install scipy
-          sudo pip install sklearn
-          sudo pip install torch torchvision
-          sudo pip install boto3==1.7.52
-          sudo pip install sagemaker
-          sudo pip install mxnet
-          sudo pip install pandas
+          sudo yum install -y scipy
+          sudo pip3 install scipy
+          sudo pip3 install sklearn
+          sudo pip3 install torch torchvision
+          sudo pip3 install boto3==1.7.52
+          sudo pip3 install sagemaker
+          sudo pip3 install mxnet
+          sudo pip3 install pandas
 
           # Set site-wide grDevices 'bitmap' type to 'cairo' to enable the correct generation of PNG images
           sudo echo "options(bitmapType=\"cairo\")
           " > /usr/lib64/R/etc/Rprofile.site
 
+          mkdir /jdbcdrivers
+
           # Install all of the OHDSI R Libraries
           sudo R --no-save << R_SCRIPT
           library(devtools)
           try(if(("SqlRender" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SqlRender") != "${SqlRenderv}")){devtools::install_version("SqlRender", version = "${SqlRenderv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
           try(if(("DatabaseConnector" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnector") != "${DatabaseConnectorv}")){devtools::install_version("DatabaseConnector", version = "${DatabaseConnectorv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
-          try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "v${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
           try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
+          try(if(("ParallelLogger" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ParallelLogger") != "2.0.2")){devtools::install_version("ParallelLogger", version = "2.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
           try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
           try(if(("FeatureExtraction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("FeatureExtraction") != "${FeatureExtractionv}")){devtools::install_github("ohdsi/FeatureExtraction", ref = "v${FeatureExtractionv}", upgrade = "never")})
           try(if(("Cyclops" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Cyclops") != "${Cyclopsv}")){devtools::install_version("Cyclops", version = "${Cyclopsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
-          try(if("BigKnn" %in% rownames(installed.packages()) == FALSE){devtools::install_github("ohdsi/BigKnn", upgrade = "never")})
+          try(if(("BigKnn" %in% rownames(installed.packages()) == FALSE) || (packageVersion("BigKnn") != "${BigKNNv}")){devtools::install_github("ohdsi/BigKnn", ref = "v${BigKNNv}", upgrade = "never")})
           try(if(("CohortMethod" %in% rownames(installed.packages()) == FALSE) || (packageVersion("CohortMethod") != "${CohortMethodv}")){devtools::install_github("ohdsi/CohortMethod", ref = "v${CohortMethodv}", upgrade = "never")})
           try(if(("EmpiricalCalibration" %in% rownames(installed.packages()) == FALSE) || (packageVersion("EmpiricalCalibration") != "${EmpiricalCalibrationv}")){devtools::install_version("EmpiricalCalibration", version = "${EmpiricalCalibrationv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
           try(if(("OhdsiSharing" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiSharing") != "${OhdsiSharingv}")){devtools::install_github("ohdsi/OhdsiSharing", ref = "v${OhdsiSharingv}", upgrade = "never")})
@@ -596,10 +630,15 @@ Resources:
           try(if(("PatientLevelPrediction" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PatientLevelPrediction") != "${PatientLevelPredictionv}")){devtools::install_github("ohdsi/PatientLevelPrediction", ref = "v${PatientLevelPredictionv}", upgrade = "never")})
           try(if(("PredictionComparison" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PredictionComparison") != "${PredictionComparisonv}")){devtools::install_github("ohdsi/PredictionComparison", ref = "v${PredictionComparisonv}", upgrade = "never")})
           try(if(("Eunomia" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Eunomia") != "${Eunomiav}")){devtools::install_github("ohdsi/Eunomia", ref = "v${Eunomiav}", upgrade = "never")})
-          devtools::install_version("pillar", version = "1.4.3", repos = "http://cran.us.r-project.org", upgrade ="never")
-          devtools::install_version("tibble", version = "3.0.0", repos = "http://cran.us.r-project.org", upgrade ="never")
-          devtools::install_version("tidyselect", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")
-          devtools::install_github("ohdsi/Andromeda", ref = "v0.3.2", upgrade = "never")
+          try(if(("Andromeda" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Andromeda") != "${Andromedav}")){devtools::install_version("Andromeda", version = "${Andromedav}", repos = "http://cran.us.r-project.org", upgrade = "never")})
+          try(if(("SelfControlledCaseSeries" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SelfControlledCaseSeries") != "${SelfControlledCaseSeriesv}")){devtools::install_github("ohdsi/SelfControlledCaseSeries", ref = "v${SelfControlledCaseSeriesv}", upgrade = "never")})
+          try(if(("SelfControlledCohort" %in% rownames(installed.packages()) == FALSE) || (packageVersion("SelfControlledCohort") != "${SelfControlledCohortv}")){devtools::install_github("ohdsi/SelfControlledCohort", ref = "v${SelfControlledCohortv}", upgrade = "never")})
+          try(if(("EvidenceSynthesis" %in% rownames(installed.packages()) == FALSE) || (packageVersion("EvidenceSynthesis") != "${EvidenceSynthesisv}")){devtools::install_github("ohdsi/EvidenceSynthesis", ref = "v${EvidenceSynthesisv}", upgrade = "never")})
+          try(if(("CohortDiagnostics" %in% rownames(installed.packages()) == FALSE) || (packageVersion("CohortDiagnostics") != "${CohortDiagnosticsv}")){devtools::install_github("ohdsi/CohortDiagnostics", ref = "v${CohortDiagnosticsv}", upgrade = "never")})
+          try(if(("Hades" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hades") != "${Hadesv}")){devtools::install_github("ohdsi/Hades", ref = "v${Hadesv}", upgrade = "never")})
+          library(DatabaseConnector)
+          downloadJdbcDrivers(pathToDriver = '/jdbcdrivers', dbms = 'redshift')
+          downloadJdbcDrivers(pathToDriver = '/jdbcdrivers', dbms = 'postgresql')
           R_SCRIPT
 
           region=`curl http://169.254.169.254/latest/dynamic/instance-identity/document|grep region|awk -F\" '{print $4}'`
@@ -619,23 +658,26 @@ Resources:
 
                 sudo -u $username bash -c 'mkdir ~/fftemp'
                 sudo -u $username bash -c 'mkdir ~/myResults'
+                sudo -u $username bash -c 'echo "DATABASECONNECTOR_JAR_FOLDER = \"/jdbcdrivers\"" >> ~/.Renviron'
 
                 sudo -u $username bash -c 'echo "#Connection string for the OMOP database on Redshift
           connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"redshift\",
           server = \"${RedshiftEndpoint}/mycdm\",
           user = \"master\",
           password = \"${DatabaseMasterPassword}\",
-          port = \"5439\")
+          port = \"5439\",
+          pathToDriver = \"/jdbcdrivers\")
 
           #Connection string for the WebAPI database on RDS Aurora PostgreSQL
           connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = \"postgresql\",
           server = \"${RDSEndpoint}/OHDSI?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory\",
           user = \"ohdsi_admin_user\",
           password = \"${DatabaseMasterPassword}\",
-          port = \"5432\")
+          port = \"5432\",
+          pathToDriver = \"/jdbcdrivers\")
 
           options(fftempdir = \"~/fftemp\")
-          outputFolder <- \"myResults\"
+          outputFolder <- \"/home/`whoami`/myResults\"
                 " > /home/'$username'/ConnectionDetails.R'
                 
 
@@ -650,6 +692,9 @@ Resources:
                 # add the first users in the list to the sudoers file.
                 if [ "$count" = "2" ]; then
                   echo "$username  ALL=(ALL:ALL) ALL" >> /etc/sudoers
+                  wget -P /home/$username/ https://ohdsi-rstudio.s3.amazonaws.com/atlasusermgmt.sh
+                  chmod +x /home/$username/atlasusermgmt.sh
+                  chown $username:$username /home/$username/atlasusermgmt.sh
                 fi
 
                 let count+=1

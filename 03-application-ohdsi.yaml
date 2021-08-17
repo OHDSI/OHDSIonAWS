@@ -204,9 +204,9 @@ Parameters:
 Mappings:
   RegionMap:
     us-east-1:
-      AMI: ami-cfe4b2b0
+      AMI: ami-0d5eff06f840b45e9
     us-east-2:
-      AMI: ami-40142d25
+      AMI: ami-0443305dabd4be2bc
     us-west-1:
       AMI: ami-0e86606d
     us-west-2:
@@ -649,7 +649,8 @@ Resources:
                   
                   aws s3 mb s3://$BUCKET_NAME
 
-                  sudo yum install -y nodejs npm --enablerepo=epel
+                  curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
+                  sudo yum install -y nodejs 
                   sudo yum install -y postgresql
 
                   export PGPASSWORD=$DATABASE_PASSWORD
@@ -673,9 +674,10 @@ Resources:
                   
                   #If specified, enable WebAPI security and create users
                   if [ "$ATLASSECURITY" = "true" ]; then
-                    sudo yum install -y httpd24-tools
+                    sudo yum install -y httpd-tools
 
-                    mv settings_security.xml ./WebAPI/settings.xml
+                    mkdir ./WebAPI/WebAPIConfig 
+                    mv settings_security.xml ./WebAPI/WebAPIConfig/settings.xml
                     psql -d OHDSI --host=$RDS_ENDPOINT --port=5432 -U ohdsi_security_user -a -f setup_security.sql
                   
                     count=1
@@ -693,7 +695,8 @@ Resources:
                     done
 
                   else
-                    mv settings.xml ./WebAPI/
+                    mkdir ./WebAPI/WebAPIConfig
+                    mv settings.xml ./WebAPI/WebAPIConfig
                   fi
                   
                   cd WebAPI
@@ -703,7 +706,7 @@ Resources:
                     sed -i 's!http://repo.springsource.org!https://repo.springsource.org!' pom.xml
                   fi
 
-                  mvn clean package -s settings.xml -P webapi-postgresql -DskipTests=true
+                  mvn clean package -Dmaven.test.skip=true -s WebAPIConfig/settings.xml -P webapi-postgresql
                   cd ..
                   cp ./WebAPI/target/WebAPI.war .
 
@@ -727,7 +730,7 @@ Resources:
                   zip -r ../ROOT.war * 
                   cd ..
 
-                  zip -r ohdsi-webapi-atlas.zip ROOT.war WebAPI.war .ebextensions
+                  zip -r ohdsi-webapi-atlas.zip ROOT.war WebAPI.war .ebextensions .platform
                   aws s3 cp ohdsi-webapi-atlas.zip s3://$BUCKET_NAME 
                 mode: 000777
                 owner: root
@@ -758,7 +761,6 @@ Resources:
                     echo "SOURCESBUCKET= " $SOURCESBUCKET
                     export AWS_DEFAULT_REGION=$(echo $EB_ENDPOINT | cut -d . -f2)
                     
-                    #Install R and the dependencies for Achilles
                     sudo yum install -y xorg-x11-xauth.x86_64 xorg-x11-server-utils.x86_64 xterm libXt libX11-devel libXt-devel libcurl-devel git compat-gmp4 compat-libffi5 openssl-devel
                     sudo yum install R R-core R-core-devel R-devel libxml2-devel -y
                     if [ -f /usr/lib64/R/etc/Makeconf.rpmnew ]; then
@@ -774,13 +776,14 @@ Resources:
                     pushd .
                     mkdir R-latest
                     cd R-latest
-                    wget https://cran.r-project.org/src/base/R-3/R-3.5.3.tar.gz
-                    tar -xzf R-3.5.3.tar.gz
+                    wget https://cran.r-project.org/src/base/R-4/R-4.1.0.tar.gz
+                    tar -xzf R-4.1.0.tar.gz
                     #Trying out Python
-                    sudo yum install -y python36 python36-devel python36-pip
+                    sudo yum install -y python3 python3-devel python3-pip
                     sudo yum install -y gcc gcc-c++ gcc-gfortran
-                    sudo yum install -y readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
-                    cd R-3*
+                    sudo yum install -y bzip2-devel readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
+                    sudo yum install -y pcre2-devel
+                    cd R-4*
                     ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
                     make -j 8
                     sudo make install
@@ -793,7 +796,9 @@ Resources:
 
                     # set unix environment variables
                     sudo su << BASH_SCRIPT
-                    echo 'export JAVA_HOME=/etc/alternatives/jre' >> /etc/profile
+                    echo '
+                    export JAVA_HOME=/etc/alternatives/jre
+                    ' >> /etc/profile
                     BASH_SCRIPT
                     sudo sh -c "source /etc/profile"
 
@@ -802,8 +807,8 @@ Resources:
                     
                     #Grab R binaries   
                     cd /usr/lib64/R/library
-                    wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-3.5.3.tar.gz
-                    tar zxvf ohdsi-rdependencies-3.5.3.tar.gz
+                    wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsi-rdependencies-al2-4.1.0.tar.gz
+                    tar zxvf ohdsi-rdependencies-al2-4.1.0.tar.gz
                     cd /tmp
 
                     #Install R dependencies if any of the specified versions differ
@@ -971,7 +976,7 @@ Resources:
                           aws elasticbeanstalk restart-app-server --environment-name $(echo $EB_ENDPOINT | cut -d . -f1)
                     done
                     
-                    sleep 120
+                    sleep 600
 
                     if [ "$EXAMPLESTUDIES" = "true" ]; then
                       wget https://ohdsi-sample-data.s3.amazonaws.com/ohdsiexamplestudies.zip
@@ -1344,9 +1349,9 @@ Resources:
                   try(if(("highr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("highr") != "0.8")){devtools::install_version("highr", version = "0.8", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("Hmisc" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Hmisc") != "4.2-0")){devtools::install_version("Hmisc", version = "4.2-0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("htmlTable" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlTable") != "1.13.1")){devtools::install_version("htmlTable", version = "1.13.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.3.6")){devtools::install_version("htmltools", version = "0.3.6", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("htmltools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmltools") != "0.5.1.1")){devtools::install_version("htmltools", version = "0.5.1.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("htmlwidgets" %in% rownames(installed.packages()) == FALSE) || (packageVersion("htmlwidgets") != "1.3")){devtools::install_version("htmlwidgets", version = "1.3", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.5.0")){devtools::install_version("httpuv", version = "1.5.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("httpuv" %in% rownames(installed.packages()) == FALSE) || (packageVersion("httpuv") != "1.6.1")){devtools::install_version("httpuv", version = "1.6.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("ini" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ini") != "0.3.1")){devtools::install_version("ini", version = "0.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("iterators" %in% rownames(installed.packages()) == FALSE) || (packageVersion("iterators") != "1.0.10")){devtools::install_version("iterators", version = "1.0.10", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("itertools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("itertools") != "0.1-3")){devtools::install_version("itertools", version = "0.1-3", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -1374,7 +1379,7 @@ Resources:
                   try(if(("png" %in% rownames(installed.packages()) == FALSE) || (packageVersion("png") != "0.1-7")){devtools::install_version("png", version = "0.1-7", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("prettyunits" %in% rownames(installed.packages()) == FALSE) || (packageVersion("prettyunits") != "1.0.2")){devtools::install_version("prettyunits", version = "1.0.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("pROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("pROC") != "1.15.0")){devtools::install_version("pROC", version = "1.15.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
-                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.0.1")){devtools::install_version("promises", version = "1.0.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
+                  try(if(("promises" %in% rownames(installed.packages()) == FALSE) || (packageVersion("promises") != "1.1.0")){devtools::install_version("promises", version = "1.1.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("PRROC" %in% rownames(installed.packages()) == FALSE) || (packageVersion("PRROC") != "1.3.1")){devtools::install_version("PRROC", version = "1.3.1", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("ps" %in% rownames(installed.packages()) == FALSE) || (packageVersion("ps") != "1.3.0")){devtools::install_version("ps", version = "1.3.0", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("purrr" %in% rownames(installed.packages()) == FALSE) || (packageVersion("purrr") != "0.3.2")){devtools::install_version("purrr", version = "0.3.2", repos = "http://cran.us.r-project.org", upgrade = "never")})
@@ -1442,110 +1447,63 @@ Resources:
                   try(if(("DatabaseConnectorJars" %in% rownames(installed.packages()) == FALSE) || (packageVersion("DatabaseConnectorJars") != "${DatabaseConnectorJarsv}")){devtools::install_version("DatabaseConnectorJars", version = "${DatabaseConnectorJarsv}", repos = "http://cran.us.r-project.org", upgrade = "never")})
                   try(if(("OhdsiRTools" %in% rownames(installed.packages()) == FALSE) || (packageVersion("OhdsiRTools") != "${OhdsiRToolsv}")){devtools::install_github("ohdsi/OhdsiRTools", ref = "v${OhdsiRToolsv}", upgrade = "never")})
                   try(if(("Achilles" %in% rownames(installed.packages()) == FALSE) || (packageVersion("Achilles") != "${Achillesv}")){devtools::install_github("ohdsi/Achilles", ref = "v${Achillesv}", upgrade = "never")})
+                  library(DatabaseConnector)
+                  downloadJdbcDrivers(pathToDriver = '/tmp', dbms = 'redshift')
                   library(Achilles)
                   connectionDetails <- createConnectionDetails(dbms="redshift", server="REDSHIFT_ENDPOINT/mycdm", user="master",
-                                          password='DATABASE_PASSWORD', schema="CDM_PLACEHOLDER", port="5439")
+                                          password='DATABASE_PASSWORD', port="5439", pathToDriver = '/tmp')
                   achillesResults <- achilles(connectionDetails, cdmDatabaseSchema="CDM_PLACEHOLDER", 
                                           resultsDatabaseSchema="RESULTS_PLACEHOLDER", sourceName="SOURCENAME_PLACEHOLDER", 
                                           cdmVersion = "5", vocabDatabaseSchema="CDM_PLACEHOLDER")              
                 mode: 000664
                 owner: root
                 group: root           
-              /tmp/.ebextensions/httpd/conf.d/ssl.conf:
+              /tmp/.platform/nginx/conf.d/https.conf:
                 content: |
-                  LoadModule ssl_module modules/mod_ssl.so
-                  Listen 443
-                  <VirtualHost *:443>
-                  <Proxy *>
-                      Require all granted
-                  </Proxy>
+                  server {
+                      listen       443;
+                      server_name  localhost;
+                      
+                      ssl                  on;
+                      ssl_certificate      /etc/pki/tls/certs/server.crt;
+                      ssl_certificate_key  /etc/pki/tls/certs/server.key;
+                      
+                      ssl_session_timeout  5m;
+                      
+                      ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+                      ssl_prefer_server_ciphers   on;
+                      
+                      proxy_read_timeout 300;
+                      proxy_connect_timeout 300;
+                      proxy_send_timeout 300; 
 
-                  SSLEngine             on
-                  SSLCertificateFile    "/etc/pki/tls/certs/server.crt"
-                  SSLCertificateKeyFile "/etc/pki/tls/certs/server.key"
-                  SSLCipherSuite        EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
-                  SSLProtocol           All -SSLv2 -SSLv3
-                  SSLHonorCipherOrder   On
-                  SSLSessionTickets     Off
-
-                  Header always set Strict-Transport-Security "max-age=63072000; includeSubdomains; preload"
-                  Header always set X-Content-Type-Options nosniff
-
-                  ProxyPass / http://localhost:80/ retry=0
-                  ProxyPassReverse / http://localhost:80/
-                  ProxyPreserveHost on
-                  RequestHeader set X-Forwarded-Proto "https" early
-
-                  </VirtualHost>
+                      location / {
+                          proxy_pass  http://localhost:80;
+                          proxy_set_header   Connection "";
+                          proxy_http_version 1.1;
+                          proxy_set_header        Host            $host;
+                          proxy_set_header        X-Real-IP       $remote_addr;
+                          proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+                          proxy_set_header        X-Forwarded-Proto https;
+                      }
+                  }
                 mode: 000500
                 owner: root
                 group: root
-              /tmp/.ebextensions/httpd/conf/httpd.conf:
+              /tmp/.platform/hooks/postdeploy/99_restart_nginx.sh:
                 content: |
-                  # Managed by Elastic Beanstalk
-                  PidFile run/httpd.pid
-
-                  # Enable TCP keepclive
-                  Timeout 240
-                  KeepAlive On
-                  MaxKeepAliveRequests 100
-                  KeepAliveTimeout 240
-
-                  <IfModule worker.c>
-                  StartServers        10
-                  MinSpareThreads     240
-                  MaxSpareThreads     240
-                  ServerLimit         10
-                  MaxRequestWorkers          250
-                  MaxConnectionsPerChild 1000000
-                  </IfModule>
-
-                  Listen 80
-
-                  IncludeOptional conf.d/*.conf
-                  IncludeOptional conf.d/elasticbeanstalk/*.conf
-
-                  User apache
-                  Group apache
-
-                  CustomLog logs/access_log "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
-                  TraceEnable off
-
-                  LoadModule alias_module modules/mod_alias.so
-                  LoadModule authz_host_module modules/mod_authz_host.so
-                  LoadModule log_config_module modules/mod_log_config.so
-                  LoadModule deflate_module modules/mod_deflate.so
-                  LoadModule headers_module modules/mod_headers.so
-                  LoadModule proxy_module modules/mod_proxy.so
-                  LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
-                  LoadModule proxy_ftp_module modules/mod_proxy_ftp.so
-                  LoadModule proxy_http_module modules/mod_proxy_http.so
-                  LoadModule proxy_ajp_module modules/mod_proxy_ajp.so
-                  LoadModule proxy_connect_module modules/mod_proxy_connect.so
-                  LoadModule cache_module modules/mod_cache.so
-                  LoadModule setenvif_module modules/mod_setenvif.so
-                  LoadModule rewrite_module modules/mod_rewrite.so
-                  LoadModule mpm_worker_module modules/mod_mpm_worker.so
-                  LoadModule autoindex_module modules/mod_autoindex.so
-                  LoadModule authz_core_module modules/mod_authz_core.so
-                  LoadModule unixd_module modules/mod_unixd.so
-                  LoadModule filter_module modules/mod_filter.so
-                  LoadModule slotmem_shm_module modules/mod_slotmem_shm.so
-                  LoadModule ssl_module modules/mod_ssl.so
-                  LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+                  #!/bin/sh 
+                  systemctl restart nginx
                 mode: 000500
                 owner: root
                 group: root
               /tmp/.ebextensions/00HIPAA.config:
                 content: |
-                  packages:
-                    yum:
-                      mod24_ssl : []
                   commands:
                     00mountencrypted:
                       command: |
                         #Create an encrypted EBS volume and mount it to store the HTTPD access_log and error_log.  Just in case PHI is written to these logs in error messages.
-                        mount='/var/log/tomcat8'
+                        mount='/var/log/nginx'
                         if grep -qs "$mount" /proc/mounts; then
                         echo "encrypted volume already mounted ..."
                         else
@@ -1564,10 +1522,10 @@ Resources:
                         done
                         mkfs -t ext3 $device
                         mkdir /tmp/mnt
-                        cp -a $mount /tmp/mnt
+                        cp -a $mount/* /tmp/mnt
                         mount $device $mount
-                        cp -a /tmp/mnt $mount
-                        chown tomcat.tomcat /var/log/tomcat8
+                        cp -a /tmp/mnt/* $mount
+                        chown tomcat.tomcat /var/log/tomcat
                         fi
                       ignoreErrors: false
                     01SelfSignedSSL:
@@ -1579,30 +1537,17 @@ Resources:
                         openssl x509 -req -days 365 -in csr.pem -signkey server.key -out server.crt
                         cp server.crt server.key /etc/pki/tls/certs/
                         rm -f server.crt server.key csr.pem
+                        cp /https.conf /etc/nginx/conf.d/
+                        rm /https.conf
+                        systemctl restart tomcat
+                        systemctl restart nginx
                         else
                         echo "Already have a self-signed private key.  This must be an application redeployment"
                         fi
-                    02InstallSSMClient:
-                      command: |
-                        # Install SSM client
-                        yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-                        restart amazon-ssm-agent
                     03SkipBadJars:
                       command: |
                         # Without this, sometimes WebAPI fails to start referencing the following class: [org.bouncycastle.asn1.ASN1Boolean
-                        sudo echo "tomcat.util.scan.StandardJarScanFilter.jarsToSkip=bcprov*.jar" >> /etc/tomcat8/catalina.properties
-
-                    create_post_dir:
-                        command: "mkdir /opt/elasticbeanstalk/hooks/appdeploy/post"
-                        ignoreErrors: true
-                  files:
-                      "/opt/elasticbeanstalk/hooks/appdeploy/post/99_httpd_timeout_config.sh":
-                        mode: "000755"
-                        owner: root
-                        group: root
-                        content: |
-                          #Change Apache session timeout values for Atlas long running queries
-                          sudo sed -i -e '/Timeout / s/ .*/ 240/' /etc/httpd/conf/httpd.conf
+                        sudo echo "tomcat.util.scan.StandardJarScanFilter.jarsToSkip=bcprov*.jar" >> /etc/tomcat/catalina.properties
                 mode: 000500
                 owner: root
                 group: root
@@ -1659,9 +1604,12 @@ Resources:
           /opt/aws/bin/cfn-init --verbose --stack ${AWS::StackName} --resource TempEC2Instance --region ${AWS::Region}
           cd /tmp
 
-          if [ "$WEBAPI_VERSION" = "2.7.5" ]; then
-            wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI275.zip
-            unzip AtlasWebAPI275.zip
+          if [ "$WEBAPI_VERSION" = "2.8.0" ]; then
+            wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI280.zip
+            unzip AtlasWebAPI280.zip
+          elif [ "$WEBAPI_VERSION" = "2.9.1" ]; then
+            wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI291.zip
+            unzip AtlasWebAPI291.zip
           else
             git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
             git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
@@ -1675,12 +1623,13 @@ Resources:
             git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
           fi
           
-          sudo service awslogs start
-          #sudo -E bash ./config_ohdsi.sh &>> log.txt
+          sudo systemctl start awslogsd
           sudo -E bash ./config_ohdsi.sh
-          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks | grep "Tomcat 8" | head -1 | cut -d \" -f2`
+          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks --region ${AWS::Region} | grep -v "SolutionStackName" | grep "Tomcat" | grep "Linux 2 " |  head -1 | cut -d \" -f2`
+          
+          # Signal the status from cfn-init
           /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
-          #sudo -E bash ./config_db.sh &>> log.txt
+
           sudo -E bash ./config_db.sh
           aws s3 cp /var/log/cloud-init-output.log s3://$BUCKET_NAME
           #Shutdown and terminate this temporary instance 
