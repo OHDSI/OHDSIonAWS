@@ -208,33 +208,33 @@ Mappings:
     us-east-2:
       AMI: ami-0443305dabd4be2bc
     us-west-1:
-      AMI: ami-0e86606d
+      AMI: ami-04468e03c37242e1e
     us-west-2:
-      AMI: ami-0ad99772
+      AMI: ami-0cf6f5c8a62fa5da6
     ca-central-1:
-      AMI: ami-03e86a67
+      AMI: ami-0101734ab73bd9e15
     eu-west-1:
-      AMI: ami-e4515e0e
+      AMI: ami-063d4ab14480ac177
     eu-west-2:
-      AMI: ami-b2b55cd5
+      AMI: ami-06dc09bb8854cbde3
     eu-west-3:
-      AMI: ami-d50bbaa8
+      AMI: ami-0b3e57ee3b63dd76b
     eu-central-1:
-      AMI: ami-a058674b
+      AMI: ami-043097594a7df80ec
     sa-east-1:
-      AMI: ami-83d58fef
+      AMI: ami-05373777d08895384
     ap-south-1:
-      AMI: ami-5a8da735
+      AMI: ami-010aff33ed5991201
     ap-southeast-1:
-      AMI: ami-ed838091
+      AMI: ami-02f26adf094f51167
     ap-southeast-2:
-      AMI: ami-33f92051
+      AMI: ami-0186908e2fdeea8f3
     ap-northeast-1:
-      AMI: ami-9c9443e3
+      AMI: ami-0ca38c7440de1749a
     ap-northeast-2:
-      AMI: ami-ebc47185
+      AMI: ami-0f2c95e9fe3f8f80e
     ap-northeast-3:
-      AMI: ami-09b8b674
+      AMI: ami-056314235f4f5d523
   
   tomcatconfig:
     t2.micro:
