@@ -424,6 +424,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns: 
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
       Policies:
         - PolicyName: root
           PolicyDocument:
@@ -459,8 +460,8 @@ Resources:
                       - ':s3:::elasticbeanstalk-*-'
                       - !Ref 'AWS::AccountId'
                       - '-*/*'
-                  - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetd3e13a98'] ], '-redcapebapp' ] ]
-                  - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetd3e13a98'] ], '-redcapebapp', '/*' ] ]
+                  - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetd3e13a98'] ], '-atlas' ] ]
+                  - !Join [ "", [ 'arn:aws:s3:::', !Ref "AWS::AccountId", '-', !Select [ 1, !Split [ '-', !Ref 'subnetd3e13a98'] ], '-atlas', '/*' ] ]
               - Sid: MetricsAccess
                 Action:
                   - 'cloudwatch:PutMetricData'
@@ -497,6 +498,7 @@ Resources:
                   - "elasticbeanstalk:CheckDNSAvailability"
                   - "elasticbeanstalk:ListAvailableSolutionStacks"
                   - "elasticbeanstalk:DescribePlatformVersion"
+                  - "elasticbeanstalk:PutInstanceStatistics"
                 Effect: Allow
                 Resource: '*'
       Path: /

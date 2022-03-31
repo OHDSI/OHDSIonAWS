@@ -85,14 +85,11 @@ Resources:
       MasterUsername: 'master'
       MasterUserPassword: !Ref DatabaseMasterPassword
       Engine: aurora-postgresql
-      EngineVersion: 10.11
       EngineMode: !If [ Serverless, 'serverless', 'provisioned' ]
       StorageEncrypted: 'True'
       Port: 5432
       DBSubnetGroupName:
         Ref: RDSDBSubnets
-      DBClusterParameterGroupName:
-        Ref: RDSDBClusterParameterGroup
       VpcSecurityGroupIds:
         - !Ref SGData
   RDSDBInstance1:
@@ -101,10 +98,7 @@ Resources:
     Properties:
       DBSubnetGroupName:
         Ref: RDSDBSubnets
-      DBParameterGroupName:
-        Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
-      EngineVersion: 10.11
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
@@ -116,28 +110,11 @@ Resources:
     Properties:
       DBSubnetGroupName:
         Ref: RDSDBSubnets
-      DBParameterGroupName:
-        Ref: RDSDBParameterGroup
       Engine: aurora-postgresql
-      EngineVersion: 10.11
       DBClusterIdentifier:
         Ref: RDSCluster
       PubliclyAccessible: 'false'
       DBInstanceClass: !Ref DatabaseInstanceType
-  RDSDBClusterParameterGroup:
-    Type: AWS::RDS::DBClusterParameterGroup
-    Properties:
-      Description: CloudFormation Sample Aurora Cluster Parameter Group
-      Family: aurora-postgresql10
-      Parameters:
-        rds.force_ssl: 1
-  RDSDBParameterGroup:
-    Type: AWS::RDS::DBParameterGroup
-    Properties:
-      Description: CloudFormation Sample Aurora Parameter Group
-      Family: aurora-postgresql10
-      Parameters:
-        log_rotation_age: 60
   RDSDBSubnets:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
