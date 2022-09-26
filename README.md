@@ -33,31 +33,31 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | --- | --- 
 | R | v4.1.0 |
 | RStudio | v1.4.1103 |
-| OMOP Common Data Model | v5.3.1 |
-| Atlas | v2.9.1 |
-| WebAPI | v2.9.1 | 
+| OMOP Common Data Model | v5.3.0 |
+| Atlas | v2.11.1 |
+| WebAPI | v2.11.1 | 
 | Achilles | v1.6.3 |
-| PatientLevelPrediction | v4.0.5 |
-| CohortMethod | v4.0.1 |
-| SqlRender | v1.6.8 |
-| DatabaseConnector | v4.0.0 |
+| PatientLevelPrediction | v5.0.5 |
+| CohortMethod | v4.2.3 |
+| SqlRender | v1.9.2 |
+| DatabaseConnector | v5.0.0 |
 | DatabaseConnectorJars | v1.1.0 |
-| OhdsiRTools | v1.9.1 |
-| FeatureExtraction | v3.1.1 |
-| Cyclops | v3.0.0 |
-| EmpiricalCalibration | v2.0.2 |
+| OhdsiRTools | v2.0.2 |
+| FeatureExtraction | v3.2.0 |
+| Cyclops | v3.2.0 |
+| EmpiricalCalibration | v3.1.1 |
 | OhdsiSharing | v0.2.2 |
-| MethodEvaluation | v2.0.0 |
-| Hydra | v0.1.1 |
-| PredictionComparison | v1.0.0 |
-| Eunomia | v1.0.1 |
-| BigKNN | v1.0.0 |
-| Andromeda | v0.4.0 |
-| SelfControlledCaseSeries | v2.0.0 |
-| SelfControlledCohort | v1.5.0 |
-| EvidenceSynthesis | v0.2.3 |
-| CohortDiagnostics | v2.1.0 |
-| Hades | v1.0.0 |
+| MethodEvaluation | v2.2.0 |
+| Hydra | v0.3.0 |
+| PredictionComparison | v0.1.0 |
+| Eunomia | v1.0.2 |
+| BigKNN | v1.0.1 |
+| Andromeda | v0.6.1 |
+| SelfControlledCaseSeries | v3.4.0 |
+| SelfControlledCohort | v1.6.0 |
+| EvidenceSynthesis | v0.3.0 |
+| CohortDiagnostics | v3.0.3 |
+| Hades | v1.3.0 |
 
 ### Included Sample Data Sources
 | Sample Data Source | Size | Schema Name |
