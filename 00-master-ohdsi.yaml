@@ -269,13 +269,14 @@ Parameters:
     Type: String
   DatabaseInstanceType:
     AllowedValues:
+      - db.t4g.medium
       - db.t3.medium
-      - db.r4.large
-      - db.r4.xlarge
-      - db.r4.2xlarge
-      - db.r4.4xlarge
-      - db.r4.8xlarge
-      - db.r4.16xlarge
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.8xlarge
+      - db.r5.16xlarge
     ConstraintDescription: Must be a valid RDS instance class.
     Default: db.t3.medium
     Description: The Amazon RDS database instance class (determines processing power and memory capacity of the database).
@@ -311,7 +312,7 @@ Parameters:
     Description: Comma-delimited list of OMOP CDM schema sources to load into the Redshift datawarehouse
     Type: String
     AllowedPattern: ^([a-zA-Z0-9,])*$
-    Default: CMSDESynPUF23m,CMSDESynPUF100k,CMSDESynPUF1k,synthea23m,synthea100k,synthea1k
+    Default: CMSDESynPUF1k,CMSDESynPUF100k,CMSDESynPUF23m,synthea1k,synthea100k,synthea23m
   SourcesBucket:
     Description: S3 Bucket that contains DDL SQL files name after each 'Source'.sql that will be executed to load data into the OMOP CDM schema sources.
     Type: String
@@ -457,11 +458,11 @@ Parameters:
   Atlasv:
     Description: The OHDSI Atlas GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.11.1'
+    Default: '2.12.0'
   WebAPIv:
     Description: OHDSI WebAPI GitHub branch you want deployed (this specifies the version)
     Type: String
-    Default: '2.11.1'
+    Default: '2.12.0'
   Achillesv:
     Description: OHDSI Achilles GitHub branch you want deployed (this specifies the version)
     Type: String

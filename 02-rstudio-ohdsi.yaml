@@ -563,6 +563,8 @@ Resources:
           sudo yum install -y gcc gcc-c++ gcc-gfortran
           sudo yum install -y bzip2-devel readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
           sudo yum install -y pcre2-devel harfbuzz-devel fribidi-devel
+          sudo amazon-linux-extras install -y epel
+          sudo yum install -y libsodium-devel
           cd R-4*
           ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
           make -j 8
@@ -699,7 +701,7 @@ Resources:
                 sudo -u $username bash -c 'echo "[default]
           region = '$region'" > /home/'$username'/.aws/config'
 
-                sudo -u $username bash -c 'mkdir ~/fftemp'
+                sudo -u $username bash -c 'mkdir ~/andromedaTemp'
                 sudo -u $username bash -c 'mkdir ~/myResults'
                 sudo -u $username bash -c 'echo "DATABASECONNECTOR_JAR_FOLDER = \"/jdbcdrivers\"" >> ~/.Renviron'
 
@@ -719,7 +721,7 @@ Resources:
           port = \"5432\",
           pathToDriver = \"/jdbcdrivers\")
 
-          options(fftempdir = \"~/fftemp\")
+          options(andromedaTempFolder = "~/andromedaTemp")
           outputFolder <- \"/home/`whoami`/myResults\"
                 " > /home/'$username'/ConnectionDetails.R'
                 

@@ -630,6 +630,26 @@ Resources:
                 mode: 000664
                 owner: root
                 group: root
+              /etc/yum.repos.d/epel-apache-maven.repo:
+                content: !Sub |
+                  # Place this file in your /etc/yum.repos.d/ directory
+
+                  [epel-apache-maven]
+                  name=maven from apache foundation.
+                  baseurl=http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-6/$basearch/
+                  enabled=1
+                  skip_if_unavailable=1
+                  gpgcheck=0
+
+                  [epel-apache-maven-source]
+                  name=maven from apache foundation. - Source
+                  baseurl=http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-6/SRPMS
+                  enabled=0
+                  skip_if_unavailable=1
+                  gpgcheck=0
+                mode: 000664
+                owner: root
+                group: root
               /tmp/config_ohdsi.sh:
                 content: |
                   #  This script configures the CFN deployed environment for OHDSI WebAPI and Atlas
@@ -670,7 +690,7 @@ Resources:
                   export NVM_DIR="/root/.nvm"
                   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
                   nvm install 11.11.0
-                  sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
+                  sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo --no-check-certificate
                   sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
                   sudo yum install -y apache-maven
                   sudo yum install -y java-1.8.0 java-1.8.0-openjdk-devel
@@ -941,6 +961,7 @@ Resources:
                           if [ "$SOURCECOUNT" = "1" ]; then
                             SOURCEVOCABPRIORITY=1
                             SOURCERESULTSPRIORITY=1
+                            sed -i 's!FALSE!'TRUE'!' postgres_init_sources-$i.sql
                           else
                             SOURCEVOCABPRIORITY=0
                             SOURCERESULTSPRIORITY=0
@@ -1160,7 +1181,8 @@ Resources:
                 group: root
               /tmp/postgres_init_sources.sql:
                 content: |
-                  INSERT INTO webapi.source (source_id, source_name, source_key, source_connection, source_dialect) VALUES (SOURCECOUNT, 'SOURCENAME_PLACEHOLDER', 'SOURCENAME_PLACEHOLDER', 'jdbc:redshift://REDSHIFT_ENDPOINT:5439/mycdm?user=master&password=DATABASE_PASSWORD', 'redshift');
+                  INSERT INTO webapi.source (source_id, source_name, source_key, source_connection, source_dialect, is_cache_enabled) VALUES (SOURCECOUNT, 'SOURCENAME_PLACEHOLDER', 'SOURCENAME_PLACEHOLDER', 'jdbc:redshift://REDSHIFT_ENDPOINT:5439/mycdm?user=master&password=DATABASE_PASSWORD', 'redshift', 'FALSE');
+                  INSERT INTO webapi.source (source_id, source_name, source_key, source_connection, source_dialect) VALUES (SOURCECOUNT, 'SOURCENAME_PLACEHOLDER', 'SOURCENAME_PLACEHOLDER', 'jdbc:redshift://REDSHIFT_ENDPOINT:5439/mycdm?user=master&password=DATABASE_PASSWORD', 'redshift');                  
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT1,SOURCECOUNT,0, 'CDM_PLACEHOLDER', 0);
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT2,SOURCECOUNT,1, 'CDM_PLACEHOLDER', SOURCEVOCABPRIORITY);
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT3,SOURCECOUNT,2, 'RESULTS_PLACEHOLDER', SOURCERESULTSPRIORITY);             
@@ -1659,6 +1681,9 @@ Resources:
           elif [ "$WEBAPI_VERSION" = "2.11.1" ]; then
             wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI2.11.1.zip
             unzip AtlasWebAPI2.11.1.zip
+          elif [ "$WEBAPI_VERSION" = "2.12.0" ]; then
+            wget https://ohdsi-sample-data.s3.amazonaws.com/AtlasWebAPI2.12.0.zip
+            unzip AtlasWebAPI2.12.0.zip
           else
             git clone -b v${Atlasv} https://github.com/OHDSI/Atlas
             git clone -b v${WebAPIv} https://github.com/OHDSI/WebAPI
@@ -1668,13 +1693,17 @@ Resources:
             wget https://ohdsi-sample-data.s3.amazonaws.com/CDM5.3.0_DDL_Redshift_optimized.sql
             mkdir -p CommonDataModel/Redshift/
             cp CDM5.3.0_DDL_Redshift_optimized.sql ./CommonDataModel/Redshift/OMOP.sql
+          elif [ "$CDM_VERSION" = "PMTX5PCT" ]; then
+            wget https://raw.githubusercontent.com/ltscomputingllc/ohdsipmtx5pct/main/PMTX_5PCT_SAMPLE_V5_DDL.sql
+            mkdir -p CommonDataModel/Redshift/
+            cp PMTX_5PCT_SAMPLE_V5_DDL.sql ./CommonDataModel/Redshift/OMOP.sql
           else
             git clone -b v${OMOPv} https://github.com/OHDSI/CommonDataModel
           fi
           
           sudo systemctl start awslogsd
           sudo -E bash ./config_ohdsi.sh
-          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks --region ${AWS::Region} | grep -v "SolutionStackName" | grep "Tomcat" | grep "Linux 2 " |  head -1 | cut -d \" -f2`
+          export SOLUTION_STACK=`aws elasticbeanstalk list-available-solution-stacks --region ${AWS::Region} | grep -v "SolutionStackName" | grep "Tomcat" | grep "Linux 2 " | grep "Corretto 8" |  head -1 | cut -d \" -f2`
           
           # Signal the status from cfn-init
           /opt/aws/bin/cfn-signal --stack ${AWS::StackName} --region ${AWS::Region} "${EC2WaitHandle}" -d "$SOLUTION_STACK"
