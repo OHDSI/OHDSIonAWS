@@ -34,8 +34,8 @@ This repository allows you to quickly deploy an enterprise class, multi-user, sc
 | R | v4.1.0 |
 | RStudio | v1.4.1103 |
 | OMOP Common Data Model | v5.3.0 |
-| Atlas | v2.11.1 |
-| WebAPI | v2.11.1 | 
+| Atlas | v2.12.0 |
+| WebAPI | v2.12.0 | 
 | Achilles | v1.6.3 |
 | PatientLevelPrediction | v5.0.5 |
 | CohortMethod | v4.2.3 |
