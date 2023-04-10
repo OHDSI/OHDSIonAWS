@@ -677,6 +677,7 @@ Resources:
                   curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
                   sudo yum install -y nodejs 
                   sudo yum install -y postgresql
+                  sudo amazon-linux-extras install -y postgresql14
 
                   export PGPASSWORD=$DATABASE_PASSWORD
                   sed -i 's!OHDSIADMINUSERPWHASH!'$OHDSIADMINUSERPWHASH'!' postgres_init_master.sql

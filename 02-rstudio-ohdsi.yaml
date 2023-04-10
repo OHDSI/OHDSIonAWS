@@ -564,6 +564,7 @@ Resources:
           sudo yum install -y bzip2-devel readline-devel cairo-devel libpng-devel libjpeg-devel libtiff-devel postgresql-devel
           sudo yum install -y pcre2-devel harfbuzz-devel fribidi-devel
           sudo amazon-linux-extras install -y epel
+          sudo amazon-linux-extras install -y postgresql14
           sudo yum install -y libsodium-devel
           cd R-4*
           ./configure --with-readline=yes --enable-R-profiling=no --enable-memory-profiling=no --enable-R-shlib --with-pic --prefix=/usr --with-x --with-libpng --with-jpeglib --with-cairo --enable-R-shlib --with-recommended-packages=yes
