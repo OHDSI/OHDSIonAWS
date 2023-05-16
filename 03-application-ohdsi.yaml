@@ -1187,6 +1187,8 @@ Resources:
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT1,SOURCECOUNT,0, 'CDM_PLACEHOLDER', 0);
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT2,SOURCECOUNT,1, 'CDM_PLACEHOLDER', SOURCEVOCABPRIORITY);
                   INSERT INTO webapi.source_daimon (source_daimon_id, source_id, daimon_type, table_qualifier, priority) VALUES (SOURCEDAEMONCOUNT3,SOURCECOUNT,2, 'RESULTS_PLACEHOLDER', SOURCERESULTSPRIORITY);             
+                  select setval('webapi.source_sequence', (select MAX(source_id) from webapi.source));
+                  select setval('webapi.source_daimon_sequence', (select MAX(source_daimon_id) from webapi.source_daimon));
                 mode: 000664
                 owner: root
                 group: root
